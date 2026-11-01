@@ -40,9 +40,11 @@
 | 路径 | 内容 |
 |---|---|
 | `SKILL.md` | 技能正文：红线 → 规格卡 → 卡到工具映射 → 收敛循环 → 收尾 → 自检 → 上游委派接口 |
-| `measure_ref.py` | 参考图量测：外框几何（%）、主色板（桶内真实平均色）、指定区域取色、纯色装饰带占比；`--selftest` 自带断言 |
-| `extract_palette.py` | 只看全局色板时的精简取色：量化分桶 + 桶内真实平均 hex + 占比 + 尺寸；`--selftest` 自带断言 |
-| `figure_metrics.py` | 参考图 ↔ 成品图**量化并排对照**：外框 %、装饰带高/绘图高、白缝 %、刻度长、每行字高、点径、主色——收敛循环每轮回跑它，不靠肉眼 |
+| `pixel_core.py` | 三个脚本共用的像素层：暗色阈值（默认 130，`--dark` 可调）、取色（桶宽 16、剔近白/近黑）、框/面板检测、装饰带（纯色+渐变）、刻度、点径、文字行。**改阈值或取色口径只改这里**，否则两个脚本会给出不可比的结果 |
+| `measure_ref.py` | 参考图量测：外框（全图坐标，无偏移）、面板候选数、主色板（桶内真实平均色 + 计数 + 占比）、指定区域取色、装饰带占比（整行 ≥90% 扫描，最长连续段）；`--selftest` 自带断言 |
+| `extract_palette.py` | 只看全局色板时的精简取色：全图统计（**不缩放**，细线不丢）+ 桶内真实平均 hex + 计数 + 占比 + 尺寸；`--min-frac` 只过滤不截断（被挡桶数会报出来）、`--keep-dark`；`--selftest` 自带断言 |
+| `figure_metrics.py` | 参考图 ↔ 成品图**量化并排对照**：外框 %、面板数（多面板逐面板输出）、装饰带高/绘图高（纯色/渐变）、白缝 %、刻度长、文字行与字高（label/title）、点径、主色——收敛循环每轮回跑它；`--json`（缺测项落 `null` + `<字段>_reason`，`status` 三态 ok/partial/none 对应 rc 0/3/4）、`--band-hex`/`--dot-hex`/`--dark`、`--selftest` |
+| `test_synth.py` | **合成真值自检**：画出几何已知的图（框位置、20px 带、渐变带、1x/2x/4x 刻度、d=10/20 点径、已知字高、2px 细线、半宽面板、双面板），对三个脚本的读数逐项断言（29 条，公差 ±1px/±2%）。改量测代码先跑它 |
 
 取色用法（需要精确 hex 时才跑）：
 
@@ -52,6 +54,19 @@ python extract_palette.py --selftest
 ```
 
 占比最大的通常是背景 / 网格，挑系列色前先剔除；输出 hex 直接进 `style_overrides.series_colors`。
+
+对照用法（收敛循环每轮跑，需要脚本化就读 `--json`）：
+
+```
+python figure_metrics.py 参考图.png 成品图.png
+python figure_metrics.py 成品图.png --json --band-hex "#FCE4EA" --dot-hex "#DE90BA"
+python figure_metrics.py --selftest
+python test_synth.py       # 合成真值：29 条几何断言（框/带/渐变/刻度/点径/字高/细线/半宽/双面板）
+```
+
+**判据按实测精度定**（`test_synth.py` 合成真值实测）：frame / band / tick 误差 0px（断言公差 ±1px）、点径 0px（d=10 与 20）、渐变带 0px（±2px）、字高 ≤1px；真实截图因抗锯齿/缩放会更差，所以交付判据是 `band/绘图高` 相对差 **<5%**、`dot` **≤10% 或 ≤1px**、`tick` **≤2px**、`frame` 各边 **≤1px**。明确做不到：多段/非单调渐变带、>40px 的大符号（`max_frac` 上限，超了会被当实线排除）。
+
+**缺测 ≠ 合格**：测不到的项在文本里是 `BAND unmeasured(<reason>)`、在 `--json` 里是 `null` + `band_reason`，字段永不省略。`status`：`ok` = 外框+装饰带+点径都测到，`partial` = 外框测到但带/点径没测到，`none` = 外框没测到（其余读数不可比）；rc 依次 `0/3/4`，用法错误 `2`。不给 `--band-hex`/`--dot-hex` 时按色板前几名猜，实际用的色值与来源（`cli` / `palette_guess`）回显在 `band_hex_used` / `band_hex_source`。装饰带只量**纯色**（单一 hex ± tol），渐变带会被量小——那属于已记录待修项，不是「没测到」。
 
 ## 与 editaplot 的关系（v2.2 借鉴了什么）
 
@@ -88,6 +103,8 @@ python extract_palette.py --selftest
 
 前置：本机装好 OriginLab Origin + `dsh-origin` MCP 插件（插件安装见 `install-dsh-origin` skill）。
 
+脚本要 Python 3 + numpy + Pillow。**Windows 上别用裸 `python`**：微软商店的 `WindowsApps` 存根会以退出码 49 静默结束、一行输出都没有（看起来像脚本没生效）。用装了依赖的解释器绝对路径，例如 DSH 自带的 `C:\Users\12576\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe`；先 `python -c "print(1)"` 探一下，能打印再跑脚本。
+
 触发词：复刻 / 照着画 / 画成这样 / 模仿这张图 / 参考图排版 / replicate figure。
 
 ## 边界（本 skill 不做什么）
@@ -105,7 +122,7 @@ python extract_palette.py --selftest
 
 ## 版本
 
-变更记录写在 `SKILL.md` 顶部（当前 v2.0：改为通用方法论——量测前置、图元映射表、能力表、硬坑清单；v1.5 注释 y 口径 / 面积填充底锁定轴下限 / 装饰条留白缝；v1.4 装饰条贴基线；v1.3 fill-to-next 不吃 -pfm 与列短名；v1.2 面积渐变已验证；v1.1 填充形态进卡；v1.0 初版）。
+变更记录写在 `SKILL.md` 顶部（当前 **v2.6**：量测层重写——`pixel_core.py` 统一阈值/取色/框检测，`test_synth.py` 29 条合成真值断言，14 处实测缺陷修复，判据按实测精度重定；v2.0：改为通用方法论——量测前置、图元映射表、能力表、硬坑清单；v1.5 注释 y 口径 / 面积填充底锁定轴下限 / 装饰条留白缝；v1.4 装饰条贴基线；v1.3 fill-to-next 不吃 -pfm 与列短名；v1.2 面积渐变已验证；v1.1 填充形态进卡；v1.0 初版）。
 
 ## 许可
 

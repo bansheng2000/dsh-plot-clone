@@ -1,92 +1,102 @@
-"""参考图取色：量化分桶统计主色，输出 top-N 真实平均 hex + 占比 + 图片尺寸。
+"""extract_palette.py — 参考图取色：分桶统计主色，输出 hex + 计数 + 占比 + 尺寸。
 
-用法:
-    python extract_palette.py 参考图.png [--top 8] [--selftest]
+用法：
+    python extract_palette.py 参考图.png [--top 8] [--min-frac 0.005] [--keep-dark] [--selftest]
+    python -c "print(1)"          # 先确认解释器可用（WindowsApps 的 python 存根静默退出码 49）
 
-用途: 参考图复刻时拿准确 hex 填 style_overrides.series_colors。
-报告的是每桶内像素的平均色（不是量化后的近似值），可直接抄进 series_colors。
-占比最大的通常是背景/网格，挑系列色前先剔除背景。
+口径与 measure_ref.py 完全一致（同一份 pixel_core.palette：桶宽 16、剔近白 >235 与近黑 <60）。
+- 全图统计，**不缩放**：旧版 NEAREST 缩到 400px 宽，2000px 图里 2px 的细线（0.1%）会被整条丢掉，
+  只剩 #FFFFFF；面积平均缩放在细线处也会混色。图大就当图大，别偷偷丢像素。
+- 门槛只过滤、不提前截断：`--min-frac` 挡掉的桶数会单独报出来，别把「被门槛挡住」当成「图里没有」。
 """
 import sys
-from collections import Counter
 
-from PIL import Image
+import pixel_core as pc
+from pixel_core import setup_stdout
 
-BUCKET = 17  # 17 级分桶只看"是不是同一种颜色"，报告值用桶内真实平均色
-
-
-def quant(v: int) -> int:
-    return round(v / BUCKET) * BUCKET
+BUCKET = pc.BUCKET
 
 
-def palette(path: str, top: int = 8, min_frac: float = 0.005) -> dict:
-    im = Image.open(path).convert("RGB")
-    w, h = im.size
-    # 缩到 400px 宽再统计：抗噪又快，颜色占比基本不变
-    small = im.resize((min(w, 400), max(1, round(min(w, 400) * h / w))), Image.NEAREST)
-    data = small.tobytes()
-
-    cnt: Counter = Counter()
-    acc: dict = {}
-    for i in range(0, len(data), 3):
-        r, g, b = data[i], data[i + 1], data[i + 2]
-        key = (quant(r), quant(g), quant(b))
-        cnt[key] += 1
-        a = acc.get(key)
-        if a is None:
-            acc[key] = [r, g, b]
-        else:
-            a[0] += r
-            a[1] += g
-            a[2] += b
-
-    total = sum(cnt.values())
-    colors = []
-    for key, c in cnt.most_common():
-        frac = c / total
-        if frac < min_frac:
-            break
-        a = acc[key]
-        colors.append(("#%02X%02X%02X" % (round(a[0] / c), round(a[1] / c), round(a[2] / c)), round(frac, 4)))
-        if len(colors) >= top:
-            break
-    return {"size": [w, h], "colors": colors}
+def palette(path, top=8, min_frac=0.0, keep_dark=False):
+    """返回 {'size': [w,h], 'colors': [{hex,count,frac}], 'filtered': N}。"""
+    a = pc.load(path)
+    h, w, _ = a.shape
+    colors, filtered = pc.palette(a, n=top, min_frac=min_frac, skip_black=not keep_dark)
+    return {"size": [w, h], "colors": colors, "filtered": filtered}
 
 
-def selftest() -> None:
+def selftest():
+    """契约自检：细线不被缩放吃掉 / 门槛外项数可见 / 桶内平均色还原真色。"""
     import os
     import tempfile
 
-    from PIL import ImageDraw
+    import numpy as np
+    from PIL import Image
 
+    d = tempfile.gettempdir()
+    p1 = os.path.join(d, "_origin_palette_selftest.png")
     im = Image.new("RGB", (100, 100), "white")
-    d = ImageDraw.Draw(im)
-    d.rectangle([0, 0, 49, 99], fill=(255, 0, 0))
-    d.rectangle([50, 0, 99, 99], fill=(0, 0, 255))
-    path = os.path.join(tempfile.gettempdir(), "_origin_palette_selftest.png")
-    im.save(path)
-    got = palette(path, top=4)
-    hexes = [c[0] for c in got["colors"]]
+    from PIL import ImageDraw
+    dr = ImageDraw.Draw(im)
+    dr.rectangle([0, 0, 49, 99], fill=(255, 0, 0))
+    dr.rectangle([50, 0, 99, 99], fill=(0, 0, 255))
+    im.save(p1)
+    got = palette(p1, top=4)
+    hexes = [c["hex"] for c in got["colors"]]
     assert got["size"] == [100, 100], got
-    assert hexes[:2] == ["#FF0000", "#0000FF"], got  # 平均色必须还原原始色，不被分桶偏移
-    print("selftest ok:", hexes)
+    assert set(hexes[:2]) == {"#FF0000", "#0000FF"}, got
+    assert abs(got["colors"][0]["frac"] - 0.5) < 0.01, got
+
+    # 2000x400 图上 2px 红线（0.1%）：旧版缩放后直接消失
+    a = np.full((400, 2000, 3), 255, np.uint8)
+    a[:, 1000:1002] = (255, 0, 0)
+    p2 = os.path.join(d, "_origin_thinline_selftest.png")
+    Image.fromarray(a).save(p2)
+    thin = palette(p2, top=8)
+    red = [c for c in thin["colors"] if c["hex"] == "#FF0000"]
+    assert red and abs(red[0]["frac"] - 0.001) < 1e-4, thin["colors"]
+    # 门槛 0.5% 挡掉它，但必须报出被挡的桶数（不许静默消失）
+    thr = palette(p2, top=8, min_frac=0.005)
+    assert not [c for c in thr["colors"] if c["hex"] == "#FF0000"], thr["colors"]
+    assert thr["filtered"] >= 1, thr
+    print("selftest ok:", hexes, "| thin line", red[0]["frac"], "| filtered", thr["filtered"])
+    return 0
 
 
-def main(argv: list) -> int:
+def main(argv):
     if "--selftest" in argv:
-        selftest()
-        return 0
-    args = [a for a in argv[1:] if not a.startswith("--")]
-    if not args:
+        return selftest()
+    files, opts, i = [], {}, 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--top", "--min-frac"):
+            if i + 1 >= len(argv):
+                print("ERROR: %s needs a value" % a, file=sys.stderr)
+                return 2
+            opts[a] = float(argv[i + 1]) if a == "--min-frac" else int(argv[i + 1])
+            i += 2
+        elif a == "--keep-dark":
+            opts[a] = True
+            i += 1
+        elif a.startswith("--"):
+            print("ERROR: unknown option %s" % a, file=sys.stderr)
+            return 2
+        else:
+            files.append(a)
+            i += 1
+    if not files:
         print(__doc__)
         return 2
-    top = int(argv[argv.index("--top") + 1]) if "--top" in argv else 8
-    r = palette(args[0], top=top)
+    r = palette(files[0], top=opts.get("--top", 8),
+                min_frac=opts.get("--min-frac", 0.0), keep_dark=opts.get("--keep-dark", False))
     print("size: %dx%d" % tuple(r["size"]))
-    for hex_, frac in r["colors"]:
-        print("%s  %.2f%%" % (hex_, frac * 100))
+    for c in r["colors"]:
+        print("%s  %6d  %.2f%%" % (c["hex"], c["count"], c["frac"] * 100))
+    if r["filtered"]:
+        print("filtered: %d bucket(s) below min_frac" % r["filtered"])
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(sys.argv))
+    setup_stdout()
+    raise SystemExit(main(sys.argv[1:]))
