@@ -1,12 +1,12 @@
-# dsh-origin-replica
+# dsh-plot-clone
 
-参考图复刻 SOP（通用版）—— 一个给 AI agent 用的 skill（Agent Skills 目录形态，`SKILL.md` + 三个量测脚本）。
+参考图复刻 SOP（Origin 版）—— 一个给 AI agent 用的 skill（Agent Skills 目录形态，`SKILL.md` + 三个量测脚本）。
 
-仓库：<https://github.com/bansheng2000/dsh-origin-replica>
+仓库：<https://github.com/bansheng2000/dsh-plot-clone>
 
 干什么：给你一张「好看的参考图」（论文插图 / 别人的成品图 / 截图）和你自己的数据，在 OriginLab Origin 里画出**风格、配色、排版、比例逐字段对得上**的图。不限定图型——折线、散点、柱、面积、堆叠谱、双 Y、多面板、带装饰条的复合图都走同一套流程。
 
-**六步，顺序是硬约束**：
+**七步，顺序是硬约束**：
 
 | # | 步骤 | 产物 |
 |---|---|---|
@@ -31,8 +31,9 @@
 - **量测前置**：颜色和几何比例都从像素来。目测配色是本 skill 最高频的返工原因（实测把 `#DE90BA` 估成 `#D0618F`、把深蓝文字估成黑色）；装饰带高度、白缝高度同样按像素占比算，不靠眼估。
 - **规格卡先于动手**：固定字段，缺项写 `unknown`，动手前一次性问用户，不许脑补。
 - **差量收敛**：每轮只列**差的项**（`字段 | 现状 | 目标 | 动作`），连续两轮差量表为空才停；仍有 unknown 项如实回报，不抹平。差量来自 `figure_metrics.py 参考图.png 成品图.png` 的归一化读数，不靠肉眼打分。
-- **交付物固定三种格式**：PNG（≥1800 宽）+ PDF + OPJU（可在 Origin 里继续编辑）；缺一件不算交付，交付里同时写明数据文件路径与列名，逐列可追溯。
-- **交付前 12 条自检**：颜色必须等于卡上 hex（像素验过，不是「差不多」）、填充形态与下边界、装饰带高度 = 量测值、页面尺寸与图层几何、verify 无 fail、数据可追溯、三格式齐等。
+- **结论按五段写**：给用户/上游的结论、建议、交付说明必须含「当前证据 → 改什么 → 为什么 → 依据 → 如何判定」，缺一段即降级为「未验证」。`如何判定` 写不出可执行命令或读数的，就是没验证——与「缺读回 = 失败」互补：五段式管文字层，`verify_deliverable.py` + `origin_verify_graph` 管文件/对象层。
+- **交付物固定三种格式**：PNG（≥1800 宽）+ PDF + OPJU（可在 Origin 里继续编辑）；缺一件不算交付，交付里同时写明数据文件路径与列名，逐列可追溯。交付前先跑 `verify_deliverable.py` 做文件层硬检查（存在/非空/同 basename/宽度），再用 `origin_verify_graph` 查对象层。
+- **交付前 17 条自检**：颜色必须等于卡上 hex（像素验过，不是「差不多」）、填充形态与下边界、装饰带高度 = 量测值、页面尺寸与图层几何、verify 无 fail、数据可追溯、三格式齐等。
 - **上游委派接口**：被领域 SOP（如 `dsh-xps-peakfit`）委派时只接风格对齐这一段——按上游系列清单建 series、不改数值、不润色标注文本、上游禁止项从严执行；回给上游规格卡 + 差量表 + 交付路径。**只有版面约束、没有参考图时不套复刻流程**，转 `origin-plotting` 常规建图。
 
 ## 文件
@@ -43,7 +44,8 @@
 | `pixel_core.py` | 三个脚本共用的像素层：暗色阈值（默认 130，`--dark` 可调）、取色（桶宽 16、剔近白/近黑）、框/面板检测、装饰带（纯色+渐变）、刻度、点径、文字行。**改阈值或取色口径只改这里**，否则两个脚本会给出不可比的结果 |
 | `measure_ref.py` | 参考图量测：外框（全图坐标，无偏移）、面板候选数、主色板（桶内真实平均色 + 计数 + 占比）、指定区域取色、装饰带占比（整行 ≥90% 扫描，最长连续段）；`--selftest` 自带断言 |
 | `extract_palette.py` | 只看全局色板时的精简取色：全图统计（**不缩放**，细线不丢）+ 桶内真实平均 hex + 计数 + 占比 + 尺寸；`--min-frac` 只过滤不截断（被挡桶数会报出来）、`--keep-dark`；`--selftest` 自带断言 |
-| `figure_metrics.py` | 参考图 ↔ 成品图**量化并排对照**：外框 %、面板数（多面板逐面板输出）、装饰带高/绘图高（纯色/渐变）、白缝 %、刻度长、文字行与字高（label/title）、点径、主色——收敛循环每轮回跑它；`--json`（缺测项落 `null` + `<字段>_reason`，`status` 三态 ok/partial/none 对应 rc 0/3/4）、`--band-hex`/`--dot-hex`/`--dark`、`--selftest` |
+| `figure_metrics.py` | 参考图 ↔ 成品图**量化并排对照**：外框 %、面板数（多面板逐面板输出）、装饰带高/绘图高（纯色/渐变）、白缝 %、刻度长、文字行与字高（label/title）、点径、主色——收敛循环每轮回跑它；`--json`（缺测项落 `null` + `<字段>_reason`，`status` 三态 ok/partial/none 对应 rc 0/3/4）、`--band-hex`/`--dot-hex`/`--dark`、`--selftest`；投稿级可辨性 `--pub-check`（灰度 ΔL*≥10 / 色盲 ΔE00≥10 / 白底对比度≥1.5:1，逐项给实测值与阈值；`--series-color "#hex,..."` 可显式指定，否则从主色提） |
+| `verify_deliverable.py` | **交付三件套文件层检查**（不读 Origin 对象属性，那是 `origin_verify_graph` 的活）：三个文件存在且非空、三者同 basename、PNG 宽 ≥ `--min-width`（默认 1800）；逐项 PASS/FAIL，rc 0 全过 / 4 有 FAIL / 2 用法错误；`--selftest` 用临时文件造「缺文件 / basename 不一致 / 宽度不够 / 全过」四种场景断言 |
 | `test_synth.py` | **合成真值自检**：画出几何已知的图（框位置、20px 带、渐变带、1x/2x/4x 刻度、d=10/20 点径、已知字高、2px 细线、半宽面板、双面板），对三个脚本的读数逐项断言（29 条，公差 ±1px/±2%）。改量测代码先跑它 |
 
 取色用法（需要精确 hex 时才跑）：
@@ -60,13 +62,27 @@ python extract_palette.py --selftest
 ```
 python figure_metrics.py 参考图.png 成品图.png
 python figure_metrics.py 成品图.png --json --band-hex "#FCE4EA" --dot-hex "#DE90BA"
+python figure_metrics.py 成品图.png --pub-check --series-color "#0072B2,#E69F00,#009E73"
+python figure_metrics.py 成品图.png --pub-check --json
 python figure_metrics.py --selftest
 python test_synth.py       # 合成真值：29 条几何断言（框/带/渐变/刻度/点径/字高/细线/半宽/双面板）
 ```
 
+交付校验（收尾必跑，文件层）：
+
+```
+python verify_deliverable.py 成品.png 成品.pdf 成品.opju --min-width 1800
+python verify_deliverable.py --selftest
+```
+
+
 **判据按实测精度定**（`test_synth.py` 合成真值实测）：frame / band / tick 误差 0px（断言公差 ±1px）、点径 0px（d=10 与 20）、渐变带 0px（±2px）、字高 ≤1px；真实截图因抗锯齿/缩放会更差，所以交付判据是 `band/绘图高` 相对差 **<5%**、`dot` **≤10% 或 ≤1px**、`tick` **≤2px**、`frame` 各边 **≤1px**。明确做不到：多段/非单调渐变带、>40px 的大符号（`max_frac` 上限，超了会被当实线排除）。
 
+**渐变带不可用于台账**：`figure_metrics.py` 判到渐变时仍给数值，但会标 `band_kind: gradient_unsupported` + `band_usable: false`（文本与 `--json` 都有）；第 1.5 步台账只能记 `rejected`，不许因为「有个数」就记 `applied`。纯色带是 `band_kind: solid` + `band_usable: true`。
+
 **缺测 ≠ 合格**：测不到的项在文本里是 `BAND unmeasured(<reason>)`、在 `--json` 里是 `null` + `band_reason`，字段永不省略。`status`：`ok` = 外框+装饰带+点径都测到，`partial` = 外框测到但带/点径没测到，`none` = 外框没测到（其余读数不可比）；rc 依次 `0/3/4`，用法错误 `2`。不给 `--band-hex`/`--dot-hex` 时按色板前几名猜，实际用的色值与来源（`cli` / `palette_guess`）回显在 `band_hex_used` / `band_hex_source`。装饰带只量**纯色**（单一 hex ± tol），渐变带会被量小——那属于已记录待修项，不是「没测到」。
+
+**投稿可辨 (`--pub-check`)**：三项各自给实测值与阈值——相邻系列灰度亮度差 ΔL*（判据 ≥10）、Brettel 1997 色盲模拟（protanopia + deuteranopia）后的 CIEDE2000 ΔE00（取两模拟较小值，判据 ≥10）、系列色对白底 `#FFFFFF` 的 WCAG 对比度（判据 ≥1.5:1）。不达标时列出冲突系列的序号 + hex + 模拟种类，并从 Okabe-Ito 八色里给一个能同时满足 ΔL* 与 ΔE00 的换色建议。`--json` 里每项含 `pass`/`reason` 与实测值，缺测项为 `null` + 原因；`status` 三态 ok/partial/fail 对应 rc `0/3/4`，用法错误 `2`。颜色数学全部纯标准库（sRGB↔线性↔XYZ↔Lab、CIEDE2000、Brettel 投影），公式锚点由 `--selftest` 钉住。
 
 ## 与 editaplot 的关系（v2.2 借鉴了什么）
 
@@ -97,9 +113,21 @@ python test_synth.py       # 合成真值：29 条几何断言（框/带/渐变/
 
 判据一句话：**有没有"要照着的那张图"**。没有就走数据驱动选图型（`origin_plot_plan`），两套流程不混。
 
+## 科研投稿规格（v2.7 新增）
+
+复刻对了但投不了稿等于白做。规格卡多了三个字段（`pub_target` / `pub_limits` / `stats`），并新增**第 1.2 步：科研投稿规格定档**（见 `SKILL.md`）：
+
+- 成品尺寸：单栏 85 mm / 双栏 170–183 mm；字号按最终尺寸算（轴标题 8–9 pt、正文 7–8 pt、下限 6 pt）
+- 线宽 0.5–1 pt；位图线条图 600–1200 dpi、照片 300 dpi，**不许插值放大**
+- 配色要过灰度与红绿色盲（Okabe-Ito 八色），相邻系列亮度差 ≥10
+- 误差棒必须写明 SD / SEM / 95% CI 与 n；显著性标记必须写检验方法与阈值——**用户没给就标 unknown 并问，不许自造**
+- 字体族本机改不了（`TextN.font$` 是静默 no-op）：期刊要 Arial/Helvetica 时，交付说明必须点名让用户在 GUI 改
+
+交付前自检从 12 条扩到 **17 条**，新增：成品尺寸与字号线宽、灰度/色盲可辨、统计定义与 n、字体族提醒。
+
 ## 使用
 
-把本仓库目录放进 agent 的技能目录即可（例如 DSH 的 `~/.agents/skills/dsh-origin-replica/`）。
+把本仓库目录放进 agent 的技能目录即可（例如 DSH 的 `~/.agents/skills/dsh-plot-clone/`）。
 
 前置：本机装好 OriginLab Origin + `dsh-origin` MCP 插件（插件安装见 `install-dsh-origin` skill）。
 
@@ -122,7 +150,7 @@ python test_synth.py       # 合成真值：29 条几何断言（框/带/渐变/
 
 ## 版本
 
-变更记录写在 `SKILL.md` 顶部（当前 **v2.6**：量测层重写——`pixel_core.py` 统一阈值/取色/框检测，`test_synth.py` 29 条合成真值断言，14 处实测缺陷修复，判据按实测精度重定；v2.0：改为通用方法论——量测前置、图元映射表、能力表、硬坑清单；v1.5 注释 y 口径 / 面积填充底锁定轴下限 / 装饰条留白缝；v1.4 装饰条贴基线；v1.3 fill-to-next 不吃 -pfm 与列短名；v1.2 面积渐变已验证；v1.1 填充形态进卡；v1.0 初版）。
+变更记录写在 `SKILL.md` 顶部（当前 **v2.7**：科研投稿规格定档（第 1.2 步 + `--pub-check` 可辨三查 + 自检 17 条）；范围收回到**只做 Origin 复刻**——矢量与 3D 两条通道实测达不到可用水平，已移除。v2.6：量测层重写——`pixel_core.py` 统一阈值/取色/框检测，`test_synth.py` 29 条合成真值断言，14 处实测缺陷修复，判据按实测精度重定；v2.0：改为通用方法论——量测前置、图元映射表、能力表、硬坑清单；v1.5 注释 y 口径 / 面积填充底锁定轴下限 / 装饰条留白缝；v1.4 装饰条贴基线；v1.3 fill-to-next 不吃 -pfm 与列短名；v1.2 面积渐变已验证；v1.1 填充形态进卡；v1.0 初版）。
 
 ## 许可
 

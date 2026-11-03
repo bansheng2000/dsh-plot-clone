@@ -9,6 +9,7 @@ figure_metrics.py 用 <130，extract_palette.py 用桶宽 17 + 不剔黑且降�
 - 坐标一律全图坐标（不做裁剪再回加偏移，那类“忘了 +2”的偏移错从结构上消失）。
 - 量不到就返回 None，由调用方落成 null + reason，绝不返回 0 或近似值冒充结果。
 """
+import hashlib
 import sys
 
 import numpy as np
@@ -33,6 +34,15 @@ def setup_stdout():
 
 def load(path):
     return np.asarray(Image.open(path).convert("RGB")).astype(int)
+
+
+def sha256_file(path):
+    """文件 sha256（小写 hex）—— --emit-card 绑图 / --expect-sha 校验共用。"""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def rgb(hexv):

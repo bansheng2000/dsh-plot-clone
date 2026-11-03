@@ -1,6 +1,6 @@
 ---
-name: dsh-origin-replica
-description: 【仅限明确要求复刻时使用；只说"画图/作图"、没有参考图时不要用本 skill，走 origin-plotting 的 origin_plot_plan】把任意类型的参考图（论文插图/别人的成品图/截图）复刻成 Origin 图的通用 SOP：第 0 步像素量测取色与几何比例 → 规格卡 → 图元到 Origin 通道映射 → 2~3 轮「渲染-对照-差量修正」→ verify + 交付。含参考图红线（不反推数据/不抄文字水印/不承诺 1:1）、能力表（能/只能逼近/做不到）与实测硬坑清单。当用户给参考图说"画成这样""复刻这张图""照着排版"时使用。可由领域 SOP（如 dsh-xps-peakfit）委派来只做风格对齐。触发词：复刻 / 照着画 / 画成这样 / 模仿这张图 / 参考图排版 / replicate figure。
+name: dsh-plot-clone
+description: 【仅限明确要求复刻时使用；只说"画图/作图"、没有参考图时不要用本 skill，走 origin-plotting 的 origin_plot_plan】把参考图（论文插图/别人的成品图/截图）复刻成 **Origin 数据图**的 SOP：第 0 步像素量测取色与几何比例 → 规格卡 → 图元到 Origin 通道映射 → 2~3 轮「渲染-对照-差量修正」→ verify + 交付。含参考图红线（不反推数据/不抄文字水印/不承诺 1:1）、能力表（能/只能逼近/做不到）与实测硬坑清单。当用户给参考图说"画成这样""复刻这张图""照着排版"时使用。可由领域 SOP（如 dsh-xps-peakfit）委派来只做风格对齐。触发词：复刻 / 照着画 / 画成这样 / 模仿这张图 / 参考图排版 / replicate figure。
 whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照着画"、"画成这样"、"模仿这张图"、"参考这张排版"）或领域 SOP 委派来做带参考图的风格对齐时使用。**用户只说"画个图/帮我作图"且没有参考图时不要用本 skill**，改走 `origin-plotting` 的 `origin_plot_plan`→`origin_execute_plan` 数据驱动选图型路径。
 ---
 
@@ -9,6 +9,7 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 > v2.0：改成「任意类型图」的方法论——新增第 0 步强制量测（`measure_ref.py`，颜色和几何比例都从像素来，禁止目测）、图元→通道映射表、能力表（能/只能逼近/做不到）。v1.x 的单图经验收敛进硬坑清单。
 > v2.1：加 `figure_metrics.py`（参考图 ↔ 成品图量化并排对照，收敛循环靠它而不是肉眼）；新增硬坑 11/12（COM 异常可 `origin_release` 救回但工程会丢、字号/点径的正确通道）。
 > v2.2：借 editaplot 的参考图契约——新增第 1.5 步「样式台账」（每字段三态 applied / retained_default / rejected + 来源优先级 + 允许清单），收尾加「缺读回=失败」；参考图只给文字**角色**，不给文字内容。
+> v2.7（2026-11-03）：科研投稿规格定档（第 1.2 步 + `pub_target`/`pub_limits`/`stats` + 自检 17 条 + `--pub-check` 可辨三查）；**同时把范围收回到只做 Origin 复刻**——矢量（Illustrator/SVG）与 3D（Blender）两条通道实测达不到可用水平，已移除，判型选通道那一步不再存在。
 
 > v2.6（2026-11-01）：量测层重写——新增 `pixel_core.py`（阈值 / 取色 / 框检测 / 装饰带 / 刻度 / 点径 / 文字行只此一份）与 `test_synth.py`（29 条合成真值断言，改量测代码必须先跑它）；修 14 处实测缺陷（框坐标 −2px、渐变带报 3px、4x 刻度报 25px、点径上限砍掉大游程、细线色被降采样丢弃、半宽与多面板量不到框、两取色器口径不一、反斜杠路径打整条）；判据按实测精度重定（frame ≤1px / band <5% / dot ≤10% 或 ≤1px / tick ≤2px），做不到的三项（多段非单调渐变、>40px 大符号、无闭合框组图）明写进文档。
 
@@ -26,6 +27,9 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 | 「用 matplotlib / Python 画就行」「随便哪个软件」 | 先按红线 6 说明：本流程只出 Origin 图；要换引擎需你明确批准 |
 
 判据一句话：**有没有"要照着的那张图"**。有 → 复刻（量测 → 规格卡 → 台账 → 差量收敛）；没有 → 数据驱动选图型（`origin_plot_plan` 的列画像 + questions 就是选型依据），两套流程不混。
+
+**科研投稿图再加一条**：只要图里有坐标轴 + 数据系列（误差棒 / 单位 / 显著性标记按需），规格卡必须同时填 `pub_target` / `pub_limits` / `stats`，并走第 1.2 步定档——**投稿合规优先于"像不像"**，两者冲突时先满足期刊要求再谈复刻相似度。
+
 ## 第 0 步之前：会话隔离（每会话一个 Origin 工程）
 
 复刻开始前先判工程归属：`origin_status` → `origin_list_pages`。
@@ -43,7 +47,7 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 3. 不承诺 1:1；交付话术固定为"布局与风格已对齐，数据为本实验数据"。
 4. 参考图有、本插件没有的能力，如实说做不到，别硬凑一个近似品假装对齐（见能力表）。
 5. **不许为了"像参考图"而平滑/插值/重采样用户数据**（参考图的包络平滑是它的画法，不是改数据的授权）。原始数据保持原样；确需平滑必须单独说明、保留原始列、并在交付话术里写清。
-6. **画图只能用 Origin（dsh-origin MCP），不许私自换引擎**。matplotlib / seaborn / R / GraphPad / Excel / PPT / AI 生图一律不算交付通道；Origin 报错（未授权 demo 态、COM 卡死）先按 `origin_diagnose`→`origin_release`→重开 opju 的顺序救，救不回来**停下来说明并等指令**，不许"那就换 matplotlib 顶上"。非要换渠道，**必须先向用户申请**：说明为什么 Origin 做不到 + 换哪个引擎 + 会丢什么（可编辑 opju、渐变/白遮罩通道、字号统一），得到明确同意再动手。
+6. **只用 Origin（dsh-origin MCP）出图**，matplotlib / seaborn / R / GraphPad / Excel / PPT / AI 生图一律不算交付通道——Origin 报错（未授权 demo 态、COM 卡死）先按 `origin_diagnose`→`origin_release`→重开 opju 的顺序救，救不回来**停下来说明并等指令**，不许"那就换 matplotlib 顶上"。任何时候要换工具，**必须先向用户申请**：说明为什么 Origin 做不到 + 换成哪个 + 会丢什么（可编辑 opju、渐变/白遮罩通道、字号统一、AI 可编辑性），得到明确同意再动。
 
 ## 上游委派接口（被领域 SOP 调用时，如 dsh-xps-peakfit）
 
@@ -93,10 +97,13 @@ python measure_ref.py 参考图.png --box band:330,282,470,300 --box peak:575,19
 ```
 python figure_metrics.py 参考图.png 成品图.png   # 并排输出可比的归一化量
 python figure_metrics.py 成品图.png --json --band-hex "#FCE4EA" --dot-hex "#DE90BA"
+python figure_metrics.py 成品图.png --pub-check --series-color "#0072B2,#E69F00"   # 第 1.2 步配色可辨三查
 python test_synth.py                            # 改过量测代码就跑这个：29 条合成真值断言
 ```
 
 **调用约定（缺测 ≠ 测得合格，必须能分辨）**：测不到的项在文本里是 `band: unmeasured(<reason>)`、在 `--json` 里是 `null` + `band_reason`，字段永不省略；`status` = `ok`（框+带+点径都测到）/ `partial`（框测到，带或点径没测到，或多面板）/ `none`（框没测到，其余读数不可比），rc 对应 `0/3/4`（`2` = 用法错误）。不给 `--band-hex` / `--dot-hex` 时按色板前几名猜，实际用的色值与来源（`palette_guess` / `cli`）写在输出里；`band: null` 且原因 `hex_not_found` 时先确认色值，别把「没测到」当成「没有装饰带」。多面板会给 `panel_count` + `panels[]`（逐面板 frame/band/tick），扁平字段置 `null` 并说明，不会拿两个面板混出一个假框。
+
+**投稿可辨（第 1.2 步配色三查）**：`figure_metrics.py 成品图.png --pub-check` 直接验——① 相邻系列灰度亮度差 ΔL* ≥ 10；② Brettel 1997 色盲模拟（protanopia + deuteranopia，取 ΔE00 较小者）≥ 10；③ 对白底 WCAG 对比度 ≥ 1.5:1。不给 `--series-color` 时从成品图主色提；每项输出实测值 + 阈值，不达标时列出冲突系列（序号 + hex）、命中的模拟种类，并从 Okabe-Ito 八色里给一个能同时过 ΔL* 与 ΔE00 的换色建议。rc `0/3/4` = ok/partial/fail（缺测项 `null` + `*_reason`，字段不省略），用法错误 `2`。
 
 统一口径 = 各自画幅归一化：`frame` left/top/w/h %、`band` 装饰带高/绘图高（`kind` = solid / gradient ）、白缝 %、`tick` 刻度长、`TEXT` 每行字高（`kind` = label / title）、`dot` 点径、`PALETTE` 主色（hex+计数+占比，与 `extract_palette.py` 同口径）。
 
@@ -119,6 +126,41 @@ python test_synth.py                            # 改过量测代码就跑这个
 | legend | 位置（tr/tl/br/bl）、字号、有无边框 | 目测 |
 | refs | 参考线 / 阈值线 / 峰位刻线 | 目测 + `layout_info` 坐标 |
 | fonts | 字体族（有无衬线）、轴标题/刻度/标注字号 pt、颜色 | `box` 取文字色 + 目测字形 |
+| pub_target | 投稿去向：期刊名 / 通用；成品宽度 mm（单栏 85 / 双栏 170 / 自定义）、成品高度上限 | 用户说；没说 → `unknown`，按 170 mm 画并注明 |
+| pub_limits | 最小字号 pt、线宽 pt 区间、位图 dpi、导出格式（矢量 + 位图各要什么） | 期刊 Guide for Authors；未见 → 用下方默认档并注明 |
+| stats | 误差棒含义（SD / SEM / 95% CI）+ n + 显著性标记的检验方法 | 用户给；没说 → `unknown`，**不许自造**（见第 1.2 步） |
+
+## 第 1.2 步：科研投稿规格定档（科研图必过；非科研图可跳）
+
+复刻对了但投不了稿 = 白做。**画之前**把这张表填进规格卡，缺项写 `unknown` 并在交付时说明。
+
+| 项 | 常见要求 | 本机怎么落地 |
+|---|---|---|
+| 成品尺寸 | 单栏 85 mm（国内部分 89）、双栏 170–183 mm | `origin_edit_page(page_size_cm=...)`，1 mm = 2.834645 pt |
+| 最小字号 | 正文 7–8 pt、轴标题 8–9 pt、标注 ≥6 pt（**按印刷尺寸算，不是屏幕看着不小**） | `layer.x.label.pt`、`TextN.fsize`、`origin_verify_graph(min_font_pt=7)` |
+| 线宽 | 0.5–1 pt（<0.25 pt 印不出来，>1.5 pt 笨） | `origin_edit_plot(line_width_pt=)` |
+| 位图分辨 | 线条图/示意图 600–1200 dpi；照片/显微图 300 dpi；**不许插值放大** | `origin_export(width=)` 按 dpi 反算像素宽（170 mm @600 dpi ≈ 4016 px） |
+| 导出格式 | 矢量优先 PDF/EPS/SVG；多数期刊还要一套 300–600 dpi TIFF | 三件套 PNG+PDF+OPJU 是底线，投稿再补 TIFF |
+| 配色可辨 | 红绿对色盲不可辨；灰度打印后仍要能分（相邻系列亮度差 ΔL ≥ 10） | Okabe-Ito 八色：`#000000 #E69F00 #56B4E9 #009E73 #F0E442 #0072B2 #D55E00 #CC79A7` |
+| 字体族 | 多数期刊要 Arial / Helvetica / Times | **本机改不了字体族**（`TextN.font$` 静默 no-op）→ 画前在 Origin 模板里设好，或交付时明确写「请在 GUI 里把字体族改成 X」 |
+| 统计标注 | 误差棒写明 SD / SEM / 95% CI 并给 n；`*`/`**`/`***` 写明检验方法与阈值 | **图上不写、图注里写**；只有误差棒没有定义 = 审稿人第一刀 |
+| 图注 | 图内不放长句图注；面板字母 a/b/c 在左上角 | `origin_annotate` 加面板字母；图注写给用户，不进图 |
+
+**mm → pt 换算（字号/线宽一律按最终印刷尺寸算）**：1 mm = 72/25.4 = **2.834645 pt**，1 pt = 0.352778 mm。同一张图从 170 mm 缩到 85 mm 单栏，视觉尺寸**减半**：`印刷 pt = 设定 pt × 目标宽 mm / 当前画布宽 mm`。
+
+| 想在 85 mm 单栏上看到的字号 | 画布就按 85 mm 时设 | 画布按 170 mm 时设（最后缩半） |
+|---|---|---|
+| 6 pt（标注下限） | 6 pt | 12 pt |
+| 7 pt（正文下限） | 7 pt | 14 pt |
+| 8 pt（轴标题） | 8 pt | 16 pt |
+| 9 pt（轴标题上限） | 9 pt | 18 pt |
+
+线宽同理：0.5–1 pt 指**成品尺寸下的 pt**——在 170 mm 画布上要设 1–2 pt，缩到 85 mm 才回到 0.5–1 pt。`origin_edit_page(page_size_cm=...)` 先定页面物理尺寸，Origin 里的 pt 按该尺寸解释；**先定 mm、再设 pt**，顺序反了字号就不是你要的。
+
+三条铁律：
+1. **不许为了好看改数据**（平滑、截断、只画半段都不行，做了就写进图注）。
+2. **不许自造统计**：用户没给 SD/SEM/CI、n、检验方法 → 标 `unknown` 并问，不许填"看起来合理"的值。
+3. **字号按最终印刷尺寸算**：先定成品 mm 再定 pt；170 mm 上用 6 pt，缩到 85 mm 单栏就变 3 pt，看不见。
 
 ## 第 1.5 步：样式台账（每个字段必须落三态之一，不许含糊）
 
@@ -150,6 +192,8 @@ python test_synth.py                            # 改过量测代码就跑这个
 | 图例位置 | br | 默认 | retained_default | 用户未要求，参考图不构成指令 |
 
 **`unverified`（改了但读不回）不算 applied**：交付前必须降级为 rejected，或补一次导出取像素回读。
+
+**渐变填充的 `applied_unverified` 不算 applied**：`origin_edit_plot(fill_mode="gradient", fill_top_color=..., fill_bottom_color=...)` 只回报 `applied_unverified`（该通道没有读回）。必须导出 PNG 后在**峰顶与底部各取一个点**的 hex（`measure_ref.py --box name:x0,y0,x1,y1`），与设的起止色对上才记 `applied`；取不到或对不上 → 记 `rejected` 并写原因。台账「依据」列写成「导出后峰顶/底取色：<hex> / <hex>」。只凭 `applied_unverified` 或「看着像渐变」就记 applied = 交付失败。
 
 ## 第 2 步：图元 → Origin 通道（照着查，别自己发明）
 
@@ -189,7 +233,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 
 | 做不到（如实说） | 原因 / 替代 |
 |---|---|
-| 按字体名指定字体 | `TextN.font$="Arial"`、`layer.x.label.font$="Arial"`、`layer.x.font$` 全是静默 no-op（2026-10-20 复测）；数字索引只会把字变坏（实测 0→等宽、1→粗体无衬线）。**字体族只能由用户在 Origin GUI 里改**，agent 侧只能对齐字号/字重/位置 |
+| 按字体名指定字体 | `TextN.font$="Arial"`、`layer.x.label.font$="Arial"`、`layer.x.font$` 全是静默 no-op（2026-10-20 复测）；数字索引只会把字变坏（实测 0→等宽、1→粗体无衬线）。**字体族只能由用户在 Origin GUI 里改**，agent 侧只能对齐字号/字重/位置。**投稿后果**：期刊要 Arial/Helvetica 而 Origin 默认 Times 时，交付说明里必须点名「请在 GUI 改字体族」，不许默认交付 Times 冒充合规 |
 | 从参考图读数据 | 红线，禁止 |
 | 像素级 1:1 | 不承诺；差量表为空即交付 |
 | 参考图有两份数据而用户只有一份 | 如实说"少一个面板"，不复制数据凑数 |
@@ -200,20 +244,40 @@ python test_synth.py                            # 改过量测代码就跑这个
 3. 一次 `origin_edit_*` / 一条 LabTalk 改完（多句合并进一个 call）→ 回第 1 步。
 4. 连续两轮差量表为空 → 停；仍有 unknown → 如实告诉用户哪几项对不上。
 
+## 回复格式（五段，结论/建议必用）
+
+给用户或上游的**结论、建议、交付说明**一律按五段写（过程闲聊、单步进度不用）。五段缺一段 → 该结论降级为「**未验证**」，不许当结论用。
+
+1. **当前证据** —— 实测值 / 读回值 / `文件:行号`；不许用「看起来」「差不多」「应该」。
+2. **改什么** —— 具体动作或建议值（字段、色值、尺寸、命令），能直接照做。
+3. **为什么** —— 机制 / 原理，一句话说清因果，不堆术语。
+4. **依据** —— SKILL 行号 / `measure_ref.py`、`figure_metrics.py` 的读数 / 实测记录（日期或会话锚点）。
+5. **如何判定** —— 改完怎么证明对了：**一条可执行命令或一个具体读数**（如 `figure_metrics.py 成品.png --pub-check` 的 ΔL*、导出后峰顶取色 hex、`verify_deliverable.py` 的 rc）。
+
+**降级规则**：`如何判定` 写不出可执行检查（没有命令、没有读数、只有「看起来对」）→ 该结论按「未验证」交付，并说明缺什么验证手段。详细推导可以另起段落，但五段必须在。
+
+这条与「缺读回 = 失败」互补：**文字层**由五段式兜底（结论必须有可执行判定），**文件层**由 `verify_deliverable.py` + `origin_verify_graph` 兜底（文件与对象属性必须有读回）；两层都过，结论才算过。
+
 ## 第 5 步：收尾（完成判据）
+- **先跑文件层硬检查**：`python verify_deliverable.py 成品.png 成品.pdf 成品.opju --min-width 1800`——三个文件存在且非空、同 basename、PNG 宽 ≥1800，逐项 PASS/FAIL，rc 非 0 不许交付。它只查文件层；图里的对象属性仍归 `origin_verify_graph`。
 - `origin_verify_graph(graph, expected_series=卡上系列数, min_font_pt=8)`：`fail` 必修，`warn` 提一句。
-- **缺读回 = 失败**：台账里每个 `applied` 必须有读回（verify 的对象属性读数，或导出后取像素）。只有导出 PNG/PDF 存在不算成功；读不回就降级，不靠"看着像"。
+- **缺读回 = 失败**：台账里每个 `applied` 必须有读回（verify 的对象属性读数，或导出后取像素）。只有导出 PNG/PDF 存在不算成功；读不回就降级，不靠"看着像"。文件层由 `verify_deliverable.py` 兜底，对象层由 `origin_verify_graph` 兜底，两层都过才算交付。
 - **交付物固定三种格式，缺一不算交付**：`origin_export(fmt="png", width>=1800)` + `origin_export(fmt="pdf")` + `origin_save_project(<同名>.opju)`（或一步 `origin_export_delivery(fmts="png,pdf,tif", save_opju=true)`，把 tif 当可选附加）。三件同目录、同名、逐件回报字节数。
 - 页面尺寸按卡 canvas 定；PNG 宽度 ≥1800。
 - 回复 = 交付文件路径 + 差量表结论（哪几项没对齐、为什么，含能力表里的"只能逼近/做不到"）。
 
-## 交付前自检（12 条有一条 no 就别交付）
+## 交付前自检（17 条有一条 no 就别交付）
 1. 数据一项都不来自参考图像素？ 2. 系列数 = 卡上？ 3. 每条颜色 = 卡上 hex（像素验过，不是"差不多"）？
 4. 轴标题含单位、范围一致？ 5. 次轴/反向轴/刻度朝内朝外按要求？ 6. 图例位置字号对齐？
 7. 页面尺寸与图层几何 = 卡上？ 8. verify 无 fail？ 9. 填充形态（纯色/渐变/起止色/下边界）与卡一致？
 10. 装饰带高度与白缝比例 = 量测值（不是估的）？
 11. **数据可追溯**：交付里写明数据文件路径 + 用到的列名，逐列说明来源；有没有任何一列是补出来/平滑过/示意数据？
 12. **三格式齐**：同名 PNG（≥1800 宽）+ PDF + OPJU 都存在且非空字节？
+13. 成品尺寸 = 卡上 pub_target（单栏 85 / 双栏 170 mm）？字号是按**这个尺寸**算的，不是按放大预览？
+14. 最小字号 ≥ 卡上 `min_font_pt`（默认 7 pt）、线宽在 0.5–1 pt？
+15. 相邻系列在**灰度**下也能分（亮度差 ≥10）且红绿对色盲可辨（ΔE00 ≥10；用 Okabe-Ito 一类安全色板最省事）？——跑 `figure_metrics.py 成品图.png --pub-check` 拿实测值，别靠眼睛。
+16. 误差棒写明了 SD/SEM/CI 与 n？显著性标记有检验方法与阈值？**没有任何一个是自造的**？
+17. 字体族若期刊要求而本机改不了 → 交付说明里写了「请在 Origin GUI 把字体族改成 X」？
 
 ## 硬坑清单（实测，别重踩）
 1. **LabTalk 数据集名 = 列短名**（`Book3_H`），写列名（`Comp1`）静默无效：导出字节和上次一模一样就是没生效的判据。动手前 `origin_inspect_graph` 读真实 dataset 名。
@@ -228,7 +292,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 10. **别乱动字体属性**：`TextN.font$` / `layer.x.label.font$` 静默 no-op；`TextN.font=<索引>` 会把字变等宽或粗体，且 `layer.x.font` 改不回原样——想保字体就别碰，改坏了重开已存的 opju 恢复。
 11. **面积/峰渐变实测通道（2026-10-23 验证）**：优先用 `origin_edit_plot` 的 `fill_mode/fill_top_color/fill_bottom_color/fill_to`（dsh-origin 插件 2.7.4+ 已封装，等价于下面的 set 命令，status=applied_unverified 属正常）；插件不可用或需别的 set 选项时，才走 `layer.plot = N` 选第 N 条曲线后 `set %C -pf 1; set %C -pfm 3; set %C -pfb color(R,G,B); set %C -pff color(255,255,255);`，导出取样=顶部饱和、底部褪白，色带按整个绘图区高度线性插值。填充下边界固定为**轴下限**（`-pf 2` 不改），偏移基线谱会被色带糊到轴底——必须后叠白遮罩（值=背景列−Δ，`-pfm 0` 纯白填到轴底）再画基线与数据。
 12. **COM 报 `<built-in function ApplicationBase_Path> returned a result with an exception set` = 会话中毒**：诱因是 `origin_labtalk` 里跑带 `$()` 的 `type` 命令、或渐变设色与导出挤在同一批调用。救法=先 `origin_release`，下个调用自动重连（`origin_status` 恢复 ok）；**但 release 会丢掉当前工程**（`list_pages` 变空），所以每次改动前先 `origin_save_project`，救回后 `doc -o 该 opju` 重开。release 救不回时再重启 Origin。
-12. **字号/点径只有两条通道，别瞎试**：刻度标签字号=`origin_edit_axis(axis="x", props={label_font_pt:11})`（读回 `x.label.fsize`）；轴标题字号=`layer.x.label.pt`；**`layer.x.pt`/`layer.y.pt` 不是刻度字号（设了静默无效）**；散点= `origin_edit_plot(edits=[{plot:i, symbol_size:..}])`，参照 `symbol_size`≈1.0 @1800 px 宽 ≈ 4~5 px 点径（参考图 0.3% 绘图宽）——1.5 偏粗、0.8 几乎看不见。
+13. **字号/点径只有两条通道，别瞎试**：刻度标签字号=`origin_edit_axis(axis="x", props={label_font_pt:11})`（读回 `x.label.fsize`）；轴标题字号=`layer.x.label.pt`；**`layer.x.pt`/`layer.y.pt` 不是刻度字号（设了静默无效）**；散点= `origin_edit_plot(edits=[{plot:i, symbol_size:..}])`，参照 `symbol_size`≈1.0 @1800 px 宽 ≈ 4~5 px 点径（参考图 0.3% 绘图宽）——1.5 偏粗、0.8 几乎看不见。
 
 ## 备注
 - 参数、错误码、失败恢复动作全在 **origin-plotting** skill；本 skill 只管"参考图 → 参数"。
