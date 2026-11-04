@@ -1,0 +1,16 @@
+{
+  "template_id": "xps_compare",
+  "required_roles": [
+    "binding_energy",
+    "measured_series"
+  ],
+  "optional_roles": [],
+  "min_columns": 3,
+  "min_rows": 2,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

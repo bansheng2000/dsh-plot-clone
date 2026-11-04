@@ -1,0 +1,23 @@
+{
+  "template_id": "circular_network",
+  "required_roles": [
+    "panel",
+    "source",
+    "target",
+    "weight"
+  ],
+  "optional_roles": [
+    "sign",
+    "source_group",
+    "target_group",
+    "edge_label"
+  ],
+  "min_columns": 4,
+  "min_rows": 1,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

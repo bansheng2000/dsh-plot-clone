@@ -1,0 +1,33 @@
+# 系统模板：xps_c1s_fit
+# 规格来自 editaplot（Apache-2.0），渲染实现由本 skill 自建；未收录其 runner.py / service.py
+id: xps_c1s_fit
+name_zh: XPS C 1s 拟合图
+kind: system
+origin: editaplot
+category: chemistry/xps
+family: ""
+visibility: internal
+status: spec-only
+source:
+  repo: https://github.com/hang-jin/editaplot
+  license: Apache-2.0
+  path: runtime/templates/xps_c1s_fit
+  commit: d93cd319c789d078da55acd75d120209b9288c83
+status_evidence: null
+gap: editaplot 内部渲染适配器（xps 的渲染 profile），不是可独立选用的图型；收录它只为把 xps 的 profile 定义带过来。
+renderer:
+  channel: []
+  helpers: []
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: 宽表
+data_contract:
+  required_roles: []
+  optional_roles: []
+  min_columns: null
+  required_columns_zh: []

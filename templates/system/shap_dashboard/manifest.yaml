@@ -1,0 +1,46 @@
+# 系统模板：shap_dashboard
+# 规格来自 editaplot（Apache-2.0），渲染实现由本 skill 自建；未收录其 runner.py / service.py
+id: shap_dashboard
+name_zh: SHAP 分栏重要性与双层环图
+kind: system
+origin: editaplot
+category: model-interpretability
+family: medical_ai_evidence
+visibility: public
+status: spec-only
+source:
+  repo: https://github.com/hang-jin/editaplot
+  license: Apache-2.0
+  path: runtime/templates/shap_dashboard
+  commit: d93cd319c789d078da55acd75d120209b9288c83
+status_evidence: null
+gap: 需要逐点颜色映射 + 色标 + 多面板联动，typed 通道三者都没有。
+renderer:
+  channel:
+    - "origin_plot_template:multi_panel"
+  helpers: []
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: 长表，每行一个样本-特征观测
+data_contract:
+  required_roles:
+    - feature
+    - shap
+    - feature_value
+    - feature_group
+  optional_roles:
+    - sample_id
+    - feature_order
+    - mean_abs_shap
+    - group_contribution
+  min_columns: null
+  required_columns_zh:
+    - Feature
+    - SHAP value
+    - Feature value
+    - Feature Group

@@ -1,0 +1,43 @@
+{
+  "name": "dsh-plot-clone",
+  "version": "0.1.0",
+  "description": "参考图复刻成 Origin 图的 SOP（技能）+ 插件壳：壳负责把 dsh-origin MCP 连接器自动装好并注册，用户不用再手动配 connector。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/bootstrap.py",
+    "cordis.patch.yml",
+    "README.md",
+    "test/selftest.mjs",
+    ".gitignore"
+  ],
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "origin",
+    "plot",
+    "replicate",
+    "mcp"
+  ],
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "cordis.patch.yml"
+    },
+    "engines": {
+      "dsh": ">=0.1.7-rc.1"
+    }
+  },
+  "scripts": {
+    "test": "node test/selftest.mjs"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "template_id": "raincloud",
+  "required_roles": [
+    "series"
+  ],
+  "optional_roles": [],
+  "min_columns": 1,
+  "min_rows": 5,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

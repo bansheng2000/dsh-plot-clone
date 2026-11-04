@@ -1,0 +1,46 @@
+# 系统模板：density_ridgeline3d
+# 规格来自 editaplot（Apache-2.0），渲染实现由本 skill 自建；未收录其 runner.py / service.py
+id: density_ridgeline3d
+name_zh: 三维双轮廓密度曲线与基线焦点
+kind: system
+origin: editaplot
+category: general/distribution-3d
+family: general_distribution
+visibility: public
+status: spec-only
+source:
+  repo: https://github.com/hang-jin/editaplot
+  license: Apache-2.0
+  path: runtime/templates/density_ridgeline3d
+  commit: d93cd319c789d078da55acd75d120209b9288c83
+status_evidence: null
+gap: 3D 只有 surface / scatter，没有 3D 偏移曲线；ridgeline 需要每条密度曲线各自在第三轴上偏移。
+renderer:
+  channel:
+    - "origin_plot3d:surface"
+  helpers: []
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: mixed-wide；每行一个横轴位置；同一行同时提供 Solid Density 与 Dashed Density
+data_contract:
+  required_roles:
+    - condition_id
+    - condition_position
+    - density_x
+    - density_solid
+    - density_dashed
+    - focal_x
+  optional_roles: []
+  min_columns: 6
+  required_columns_zh:
+    - Condition ID（条件标识）
+    - Condition Position（带单位数值）
+    - Density X（带单位数值）
+    - Solid Density（非负数值）
+    - Dashed Density（非负数值）
+    - Focal X（每组仅一行非空）

@@ -191,7 +191,7 @@ def worst(ms):
 
 # ------------------------------------------------------- 投稿级可辨性（--pub-check）
 
-PUB_DELTA_L = 10.0        # 灰度可辨：相邻系列 CIE L* 差下限（SKILL 第 1.2 步）
+PUB_DELTA_L = 10.0        # 灰度可辨：相邻系列 CIE L* 差下限（SKILL 第 2 步）
 PUB_DELTA_E00 = 10.0      # 色盲可辨：Brettel 模拟后 CIEDE2000 下限
 PUB_CONTRAST = 1.5        # 白底 WCAG 对比度下限
 PUB_BG = "#FFFFFF"
@@ -591,7 +591,7 @@ def show(m):
                  m.get("band_kind"), _fmt(m.get("band_usable")).lower()))
         if m.get("band_usable") is False:
             print("   WARN gradient_unsupported: 渐变带按绘图区高度插值，量到的高偏小；"
-                  "第 1.5 步台账记 rejected，不许记 applied")
+                  "第 3 步台账记 rejected，不许记 applied")
         g = m.get("gap")
         if g is None:
             print("   GAP  unmeasured(%s)" % m.get("gap_reason"))
@@ -873,7 +873,7 @@ def selftest():
     assert m["band_kind"] == "solid" and m["band_usable"] is True, \
         (m.get("band_kind"), m.get("band_usable"))
 
-    # 1b) 渐变带：数值照给，但 band_kind 必须显式标不可用（第 1.5 步台账不许记 applied）
+    # 1b) 渐变带：数值照给，但 band_kind 必须显式标不可用（第 3 步台账不许记 applied）
     gm = metrics(grad)
     assert gm["band"] and gm["band"]["kind"] == "gradient", gm.get("band")
     assert gm["band_kind"] == "gradient_unsupported" and gm["band_usable"] is False, \

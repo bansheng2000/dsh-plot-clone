@@ -1,0 +1,41 @@
+# 系统模板：time_frequency
+# 规格来自 editaplot（Apache-2.0），渲染实现由本 skill 自建；未收录其 runner.py / service.py
+id: time_frequency
+name_zh: 时间–频率物理矩阵
+kind: system
+origin: editaplot
+category: research/neurophysiology
+family: research_imaging
+visibility: public
+status: spec-only
+source:
+  repo: https://github.com/hang-jin/editaplot
+  license: Apache-2.0
+  path: runtime/templates/time_frequency
+  commit: d93cd319c789d078da55acd75d120209b9288c83
+status_evidence: null
+gap: "尚未实跑：预计 origin_matrix_write + origin_plot_contour:contour_fill 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）"
+renderer:
+  channel:
+    - origin_matrix_write
+    - "origin_plot_contour:contour_fill"
+  helpers: []
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: 长表，每行一个时间×频率单元
+data_contract:
+  required_roles:
+    - x
+    - frequency_axis
+    - series
+  optional_roles: []
+  min_columns: 3
+  required_columns_zh:
+    - Time (s)
+    - Frequency (Hz)
+    - Power (dB)

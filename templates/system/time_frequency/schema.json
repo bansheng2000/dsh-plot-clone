@@ -1,0 +1,17 @@
+{
+  "template_id": "time_frequency",
+  "required_roles": [
+    "x",
+    "frequency_axis",
+    "series"
+  ],
+  "optional_roles": [],
+  "min_columns": 3,
+  "min_rows": 4,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

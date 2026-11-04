@@ -6,17 +6,19 @@
 
 干什么：给你一张「好看的参考图」（论文插图 / 别人的成品图 / 截图）和你自己的数据，在 OriginLab Origin 里画出**风格、配色、排版、比例逐字段对得上**的图。不限定图型——折线、散点、柱、面积、堆叠谱、双 Y、多面板、带装饰条的复合图都走同一套流程。
 
-**七步，顺序是硬约束**：
+**九步，顺序是硬约束**：
 
 | # | 步骤 | 产物 |
 |---|---|---|
 | 0 | 像素量测 | `measure_ref.py` 输出外框比例、主色板（桶内真实平均色）、指定区域取色、装饰带占比 |
-| 1 | 写规格卡 | 十三字段卡：canvas / geometry / family / panels / x,y / y2 / series / fill / deco / yerr / legend / refs / fonts；`refs` 记参考图 sha256 + 尺寸 + 字节数 |
-| 1.5 | 样式台账 | 每个字段三态之一：`applied` / `retained_default` / `rejected`；来源优先级= 用户明说 > 参考图允许清单 > 默认 |
-| 2 | 图元 → 通道 | 查映射表：点、线、柱、渐变、白遮罩、装饰带、刻线、文字、图例、面板、对数轴、页面几何 |
-| 3 | 能力表对照 | 能 / 只能逼近 / 做不到三条线分开，别承诺做不到的 |
-| 4 | 收敛循环（最多 3 轮） | `origin_view_graph` 看自己的图 → 只列差项 → 一次批量改 → 再看 |
-| 5 | 收尾 | `origin_verify_graph` + 页面尺寸 + **三格式交付（PNG ≥1800 宽 + PDF + OPJU，同名同目录）**，回复里带差量表结论 |
+| 1 | 写规格卡 | 十六字段卡：canvas / geometry / family / panels / x,y / y2 / series / fill / deco / yerr / legend / refs / fonts / pub_target / pub_limits / stats；`refs` 记参考图 sha256 + 尺寸 + 字节数 |
+| 2 | 科研投稿规格定档 | 成品尺寸 mm、最小字号 / 线宽、位图 dpi、导出格式、配色可辨、统计标注；缺项写 `unknown` |
+| 3 | 样式台账 | 每个字段三态之一：`applied` / `retained_default` / `rejected`；来源优先级= 用户明说 > 参考图允许清单 > 默认 |
+| 4 | **选模板** | `templates_index.py --check` 验索引 → `--list` 列三组（收藏 / 系统按 category / 用户）→ 命中 `implemented` 走 `renderer.channel`；命中 `spec-only` 必须原话报 gap 并给两选项；未命中走自由构图 |
+| 5 | 图元 → 通道 | 查映射表：点、线、柱、渐变、白遮罩、装饰带、刻线、文字、图例、面板、对数轴、页面几何 |
+| 6 | 能力表对照 | 能 / 只能逼近 / 做不到三条线分开，别承诺做不到的 |
+| 7 | 收敛循环（最多 3 轮） | `origin_view_graph` 看自己的图 → 只列差项 → 一次批量改 → 再看 |
+| 8 | 收尾 | `origin_verify_graph` + 页面尺寸 + **三格式交付（PNG ≥1800 宽 + PDF + OPJU，同名同目录）**，回复里带差量表结论 |
 
 ## 红线（前 3 条违反=造假）
 
@@ -40,13 +42,14 @@
 
 | 路径 | 内容 |
 |---|---|
-| `SKILL.md` | 技能正文：红线 → 规格卡 → 卡到工具映射 → 收敛循环 → 收尾 → 自检 → 上游委派接口 |
+| `SKILL.md` | 技能正文：红线 → 量测 → 规格卡 → 投稿定档 → 样式台账 → 图元映射 → 能力表 → 收敛 → 收尾 → 自检 → 上游委派接口 |
 | `pixel_core.py` | 三个脚本共用的像素层：暗色阈值（默认 130，`--dark` 可调）、取色（桶宽 16、剔近白/近黑）、框/面板检测、装饰带（纯色+渐变）、刻度、点径、文字行。**改阈值或取色口径只改这里**，否则两个脚本会给出不可比的结果 |
 | `measure_ref.py` | 参考图量测：外框（全图坐标，无偏移）、面板候选数、主色板（桶内真实平均色 + 计数 + 占比）、指定区域取色、装饰带占比（整行 ≥90% 扫描，最长连续段）；`--selftest` 自带断言 |
 | `extract_palette.py` | 只看全局色板时的精简取色：全图统计（**不缩放**，细线不丢）+ 桶内真实平均 hex + 计数 + 占比 + 尺寸；`--min-frac` 只过滤不截断（被挡桶数会报出来）、`--keep-dark`；`--selftest` 自带断言 |
 | `figure_metrics.py` | 参考图 ↔ 成品图**量化并排对照**：外框 %、面板数（多面板逐面板输出）、装饰带高/绘图高（纯色/渐变）、白缝 %、刻度长、文字行与字高（label/title）、点径、主色——收敛循环每轮回跑它；`--json`（缺测项落 `null` + `<字段>_reason`，`status` 三态 ok/partial/none 对应 rc 0/3/4）、`--band-hex`/`--dot-hex`/`--dark`、`--selftest`；投稿级可辨性 `--pub-check`（灰度 ΔL*≥10 / 色盲 ΔE00≥10 / 白底对比度≥1.5:1，逐项给实测值与阈值；`--series-color "#hex,..."` 可显式指定，否则从主色提） |
 | `verify_deliverable.py` | **交付三件套文件层检查**（不读 Origin 对象属性，那是 `origin_verify_graph` 的活）：三个文件存在且非空、三者同 basename、PNG 宽 ≥ `--min-width`（默认 1800）；逐项 PASS/FAIL，rc 0 全过 / 4 有 FAIL / 2 用法错误；`--selftest` 用临时文件造「缺文件 / basename 不一致 / 宽度不够 / 全过」四种场景断言 |
 | `test_synth.py` | **合成真值自检**：画出几何已知的图（框位置、20px 带、渐变带、1x/2x/4x 刻度、d=10/20 点径、已知字高、2px 细线、半宽面板、双面板），对三个脚本的读数逐项断言（29 条，公差 ±1px/±2%）。改量测代码先跑它 |
+| `templates_index.py` | **模板索引的机器闸门**：`--check` 五条断言（implemented 必须有实测证据文件且非空 / spec-only 必须有 `gap` / system 模板 path 必须在 `templates/system/` 下 / 收藏不许悬空 / `renderer.channel` 的工具名与变体必须在白名单），rc 0 全过 / 1 有 FAIL / 2 索引缺失；`--list` 按「收藏置顶 → 系统按图型分组 → 用户」列三类；`--selftest` 八条变异全部必须真红。**没证据的 implemented 过不了这道闸** |
 
 取色用法（需要精确 hex 时才跑）：
 
@@ -78,7 +81,7 @@ python verify_deliverable.py --selftest
 
 **判据按实测精度定**（`test_synth.py` 合成真值实测）：frame / band / tick 误差 0px（断言公差 ±1px）、点径 0px（d=10 与 20）、渐变带 0px（±2px）、字高 ≤1px；真实截图因抗锯齿/缩放会更差，所以交付判据是 `band/绘图高` 相对差 **<5%**、`dot` **≤10% 或 ≤1px**、`tick` **≤2px**、`frame` 各边 **≤1px**。明确做不到：多段/非单调渐变带、>40px 的大符号（`max_frac` 上限，超了会被当实线排除）。
 
-**渐变带不可用于台账**：`figure_metrics.py` 判到渐变时仍给数值，但会标 `band_kind: gradient_unsupported` + `band_usable: false`（文本与 `--json` 都有）；第 1.5 步台账只能记 `rejected`，不许因为「有个数」就记 `applied`。纯色带是 `band_kind: solid` + `band_usable: true`。
+**渐变带不可用于台账**：`figure_metrics.py` 判到渐变时仍给数值，但会标 `band_kind: gradient_unsupported` + `band_usable: false`（文本与 `--json` 都有）；第 3 步台账只能记 `rejected`，不许因为「有个数」就记 `applied`。纯色带是 `band_kind: solid` + `band_usable: true`。
 
 **缺测 ≠ 合格**：测不到的项在文本里是 `BAND unmeasured(<reason>)`、在 `--json` 里是 `null` + `band_reason`，字段永不省略。`status`：`ok` = 外框+装饰带+点径都测到，`partial` = 外框测到但带/点径没测到，`none` = 外框没测到（其余读数不可比）；rc 依次 `0/3/4`，用法错误 `2`。不给 `--band-hex`/`--dot-hex` 时按色板前几名猜，实际用的色值与来源（`cli` / `palette_guess`）回显在 `band_hex_used` / `band_hex_source`。装饰带只量**纯色**（单一 hex ± tol），渐变带会被量小——那属于已记录待修项，不是「没测到」。
 
@@ -115,7 +118,7 @@ python verify_deliverable.py --selftest
 
 ## 科研投稿规格（v2.7 新增）
 
-复刻对了但投不了稿等于白做。规格卡多了三个字段（`pub_target` / `pub_limits` / `stats`），并新增**第 1.2 步：科研投稿规格定档**（见 `SKILL.md`）：
+复刻对了但投不了稿等于白做。规格卡多了三个字段（`pub_target` / `pub_limits` / `stats`），并新增**第 2 步：科研投稿规格定档**（见 `SKILL.md`）：
 
 - 成品尺寸：单栏 85 mm / 双栏 170–183 mm；字号按最终尺寸算（轴标题 8–9 pt、正文 7–8 pt、下限 6 pt）
 - 线宽 0.5–1 pt；位图线条图 600–1200 dpi、照片 300 dpi，**不许插值放大**
@@ -148,9 +151,60 @@ python verify_deliverable.py --selftest
 - `origin_annotate` 的 y 是文字顶边、`origin_layout_info` 报的是底边，两者差一个字高；`style.size` 常被忽略，要 LabTalk `TextN.fsize` 强制
 - 没装 Origin / dsh-origin 插件的机器上不适用
 
+## 模板证据图（`templates/evidence/`）
+
+实跑第 1 批模板留下的产物：9 份 `<id>.md`（真实调用参数 + 对象层反读值 + 导出字节数）和 9 张 `<id>.png`（1200×850），外加 `probes/` 下 5 张探针失败现场图。
+
+**这 8 张 PNG 只作「通道连通证明」，绝不许当成品示例或宣传图**：本机 Origin 当前是 demo 模式，图上有满幅青色 `demo` 水印。每份 md 都写了水印状态；每次导出都要记一句，让用户随时能看到当前环境可不可交付。授权问题归用户处理，本 skill 不碰、不去水印、不换证书。
+
+## 插件壳（让 MCP 连接器跟着插件一起装好）
+
+技能本体是纯文件（装进 `~/.agents/skills/` 只是拷贝，没有任何安装/启动钩子），所以本仓库同时是一个 DSH 插件 bundle：`package.json` + `cordis.patch.yml` + `lib/index.js`。
+
+壳只做**检测与决策**，不画图、不阻塞启动：
+
+| 阶段 | 行为 |
+|---|---|
+| `apply()` | 懒加载 `webServer` seam 取端口 → `POST /mcp-connector/api {"method":"status"}` |
+| 已有 `custom-dsh-origin` 且启用 | **复用，一个字节都不改**（只读 status，绝不 configure） |
+| 已有但被禁用 | 返回 `enable` 决策，**不擅自启用** |
+| 没有连接 + 依赖就位 | 走 `configure` 注册（connector 会先真启动 server 并 tools/list 验证，失败自动回滚） |
+| 没有连接 + 依赖缺失 | `spawn detached` bootstrap，`apply()` 立刻返回 |
+
+为什么注册走 HTTP API 而不写 `storages/mcp_connector.json`：connector 在 `apply` 时把 domain open 进内存且全库无文件监听，外部写入必须重启 DSH 才生效，还会绕过快照/回滚与 scope 校验。HTTP API 是它自己的 UI 也在用的接口（有方法白名单与回环信任校验）。
+
+状态与产物都在用户目录，**不放插件目录**（pnpm 重装会清空 `node_modules`）：`~/.dsh/dsh-plot-clone/{venv,server,cache,mcp-state.json,bootstrap.json,bootstrap.log}`。
+
+### bootstrap（首次安装器）
+
+`lib/bootstrap.py` 三个阶段，任一失败都写 `bootstrap.json`（ok/error/hint）+ `bootstrap.log`，hint 是能直接复制执行的手动命令：
+
+| 阶段 | 做什么 | 实测 |
+|---|---|---|
+| `server` | 按**钉死 commit** 下 codeload tarball → sha256 校验 → 解包到 `server/`；下过一次只校验不重下；离线无缓存明确报错 | commit `03acc24…`、tarball 1.39 MB、sha256 `c2637e…`；重跑实测「只校验，不重下」 |
+| `venv` | 用 DSH 自带 Python 3.12.14 建 venv → `pip install -r requirements.txt`；不强制代理（PyPI 直连可通） | **134 MB**，约 25 秒 |
+| `register` | `status` 查 `serverName == dsh-origin` → 命中且启用就**只记录、不 configure**；被禁用则提示用户，不擅自启用；都没有才 `configure`（字段是 **`params`**） | 实测走复用路径，日志「复用，不 configure」 |
+
+`--offline` 禁网只用缓存；`--status` 打印当前状态；`--stage venv|server|register` 单独跑。
+
+**「装完就能用」已实测**：注册一条临时连接（`custom-plot-clone-test` → 只暴露 `ping` 的假 MCP server）后，**同一个已开着的会话**直接调 `mcp__plot-clone-test__ping` 返回 `pong` —— 不需要新开会话。验完已 `disconnect`，用户的 `custom-dsh-origin` 全程未被触碰（4 条连接 → 5 → 4）。
+
+测试：`node test/selftest.mjs`（9 条，含幂等键 `custom-<serverName>`、已存在只读复用、configure 失败不落半条记录、patch 必须 `- insert:` 形态）。
+
+## 版本号（两个，别混）
+
+本仓库同时是一个技能包和一个 DSH 插件包，因此有**两个独立版本号**：
+
+| 版本 | 位置 | 管什么 | 变更时机 |
+|---|---|---|---|
+| 技能版本 `v2.7` | `SKILL.md` 顶部注记 + 本节下方「版本」段 | 复刻方法论本身：步骤、判据、能力表、脚本行为、模板库 | 改 SKILL/脚本/模板时**记入变更记录**，但版本号只在发版时改 |
+| 插件版本 `0.1.0` | `package.json` 的 `version` | 插件壳：检测、注册 connector、bootstrap | 改 `lib/index.js` 时**不动号**，发版时改 |
+
+两者**都不许擅自 bump**：改代码不等于发版，发版前会单独确认。
+
 ## 版本
 
-变更记录写在 `SKILL.md` 顶部（当前 **v2.7**：科研投稿规格定档（第 1.2 步 + `--pub-check` 可辨三查 + 自检 17 条）；范围收回到**只做 Origin 复刻**——矢量与 3D 两条通道实测达不到可用水平，已移除。v2.6：量测层重写——`pixel_core.py` 统一阈值/取色/框检测，`test_synth.py` 29 条合成真值断言，14 处实测缺陷修复，判据按实测精度重定；v2.0：改为通用方法论——量测前置、图元映射表、能力表、硬坑清单；v1.5 注释 y 口径 / 面积填充底锁定轴下限 / 装饰条留白缝；v1.4 装饰条贴基线；v1.3 fill-to-next 不吃 -pfm 与列短名；v1.2 面积渐变已验证；v1.1 填充形态进卡；v1.0 初版）。
+变更记录写在 `SKILL.md` 顶部（当前 **v2.7**：科研投稿规格定档（第 2 步 + `--pub-check` 可辨三查 + 自检 17 条）；范围收回到**只做 Origin 复刻**——矢量与 3D 两条通道实测达不到可用水平，已移除。v2.6：量测层重写——`pixel_core.py` 统一阈值/取色/框检测，`test_synth.py` 29 条合成真值断言，14 处实测缺陷修复，判据按实测精度重定；v2.0：改为通用方法论——量测前置、图元映射表、能力表、硬坑清单；v1.5 注释 y 口径 / 面积填充底锁定轴下限 / 装饰条留白缝；v1.4 装饰条贴基线；v1.3 fill-to-next 不吃 -pfm 与列短名；v1.2 面积渐变已验证；v1.1 填充形态进卡；v1.0 初版）。
 
 ## 许可
 

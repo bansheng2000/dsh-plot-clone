@@ -1,0 +1,13 @@
+{
+  "template_id": "eis",
+  "required_roles": [],
+  "optional_roles": [],
+  "min_columns": 2,
+  "min_rows": 2,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

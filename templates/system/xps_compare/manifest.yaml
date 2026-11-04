@@ -1,0 +1,38 @@
+# 系统模板：xps_compare
+# 规格来自 editaplot（Apache-2.0），渲染实现由本 skill 自建；未收录其 runner.py / service.py
+id: xps_compare
+name_zh: XPS 多谱线对比
+kind: system
+origin: editaplot
+category: spectroscopy/xps
+family: spectroscopy
+visibility: public
+status: spec-only
+source:
+  repo: https://github.com/hang-jin/editaplot
+  license: Apache-2.0
+  path: runtime/templates/xps_compare
+  commit: d93cd319c789d078da55acd75d120209b9288c83
+status_evidence: null
+gap: "尚未实跑：预计 origin_plot_template:stacked_spectra 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）"
+renderer:
+  channel:
+    - "origin_plot_template:stacked_spectra"
+  helpers: []
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: 宽表；第一条物理 X 列加两条或更多独立实测谱线
+data_contract:
+  required_roles:
+    - binding_energy
+    - measured_series
+  optional_roles: []
+  min_columns: 3
+  required_columns_zh:
+    - Binding Energy/结合能列
+    - 至少两个独立实测 Intensity/Counts 数值系列

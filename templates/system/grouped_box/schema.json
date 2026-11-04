@@ -1,0 +1,15 @@
+{
+  "template_id": "grouped_box",
+  "required_roles": [
+    "series"
+  ],
+  "optional_roles": [],
+  "min_columns": 2,
+  "min_rows": 5,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

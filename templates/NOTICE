@@ -1,0 +1,23 @@
+# NOTICE
+
+本目录 `templates/system/` 下的模板**规格**（图型定义、数据角色、视觉判据）来自：
+
+- 项目：editaplot
+- 仓库：https://github.com/hang-jin/editaplot
+- 许可：Apache-2.0
+- 抓取提交：d93cd319c789d078da55acd75d120209b9288c83
+- 抓取日期：2026-11-03
+
+**收录范围**：只收规格（`manifest.yaml` 的元数据、`schema.json` 的列角色、
+`data_contract.md` / `visual_contract.md` 的判据），并按本 skill 的字段重写为中文。
+
+**未收录**：editaplot 的 `runner.py` / `service.py`（它们绑定 `originpro` Python 包，
+与本 skill 使用的 dsh-origin MCP 通道不兼容），以及它的示例 CSV 与图片资产。
+
+**渲染实现由本 skill 自建**：所有图通过 dsh-origin MCP 工具绘制，`status` 只认
+本 skill 自己实跑过的证据（见 `evidence/<id>.md`），未跑过的一律标 `spec-only`。
+
+`templates/system/dual_y` 与 `templates/system/multi_panel` 是**本 skill 原生模板**，
+不在 editaplot 的 47 个之内，其 `manifest.yaml` 的 `origin` 字段为 `native`。
+
+Apache-2.0 全文见 https://www.apache.org/licenses/LICENSE-2.0

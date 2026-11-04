@@ -1,0 +1,22 @@
+{
+  "template_id": "xrd",
+  "required_roles": [
+    "x",
+    "series"
+  ],
+  "optional_roles": [
+    "background",
+    "difference",
+    "phase_tick",
+    "support",
+    "ignored"
+  ],
+  "min_columns": 2,
+  "min_rows": 2,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

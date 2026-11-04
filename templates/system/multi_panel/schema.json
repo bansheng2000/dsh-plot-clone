@@ -1,0 +1,15 @@
+{
+  "template_id": "multi_panel",
+  "required_roles": [
+    "x",
+    "panel"
+  ],
+  "optional_roles": [],
+  "min_columns": 3,
+  "min_rows": 1,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xlsx"
+  ]
+}

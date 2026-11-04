@@ -1,0 +1,40 @@
+# 系统模板：event_raster
+# 规格来自 editaplot（Apache-2.0），渲染实现由本 skill 自建；未收录其 runner.py / service.py
+id: event_raster
+name_zh: 已提供事件与试次栅格
+kind: system
+origin: editaplot
+category: research/signals
+family: research_imaging
+visibility: public
+status: spec-only
+source:
+  repo: https://github.com/hang-jin/editaplot
+  license: Apache-2.0
+  path: runtime/templates/event_raster
+  commit: d93cd319c789d078da55acd75d120209b9288c83
+status_evidence: null
+gap: 没有「按分类逐行画竖线」的通道，只能靠 N 列数据硬凑（100 个 trial 就是 100 列）。
+renderer:
+  channel:
+    - "origin_plot:line"
+  helpers: []
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: 每行一个已提供事件，或一个空Time的试次清单项
+data_contract:
+  required_roles:
+    - x
+    - category
+    - series_id
+  optional_roles: []
+  min_columns: 3
+  required_columns_zh:
+    - Time (s)
+    - Trial
+    - Condition

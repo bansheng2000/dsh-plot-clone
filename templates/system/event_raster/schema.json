@@ -1,0 +1,17 @@
+{
+  "template_id": "event_raster",
+  "required_roles": [
+    "x",
+    "category",
+    "series_id"
+  ],
+  "optional_roles": [],
+  "min_columns": 3,
+  "min_rows": 1,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

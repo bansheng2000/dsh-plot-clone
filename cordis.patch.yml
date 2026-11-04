@@ -1,0 +1,15 @@
+# dsh-plot-clone — 插件壳 bundle patch
+#
+# 本 bundle 只注册一个条目 `plot-clone`（name 必须等于包名，市场才认为它 live）。
+# 壳的职责是**检测 + 决策 + 起 bootstrap**，本身不画图、不装依赖：
+#   · 读 connector 现状 → 已有且 enabled 就复用（只读，绝不 configure）
+#   · 缺依赖 → spawn detached bootstrap，立刻返回，不阻塞 DSH 启动
+#   · 依赖就位且没有连接 → 走 dsh-mcp-connector 的本地 HTTP API 注册
+#
+# 为什么必须用 `- insert:` 包裹：bundle patch 里顶层扁平的 `- id:` 只会被
+# loader 当成「改已有条目配置」，条目不存在时是**静默空操作**——插件永远挂不上
+# （plugin_manager list_bundles 会把它列进 overrides 而不是 rows）。
+# profile 自己那份 cordis.patch.yml 里才用扁平 `- id:` 做配置覆盖层。
+- insert:
+    - id: plot-clone
+      name: dsh-plot-clone

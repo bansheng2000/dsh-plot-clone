@@ -1,0 +1,21 @@
+{
+  "template_id": "uv_vis",
+  "required_roles": [
+    "x",
+    "series"
+  ],
+  "optional_roles": [
+    "photon_energy",
+    "tauc",
+    "tauc_fit",
+    "bandgap"
+  ],
+  "min_columns": 2,
+  "min_rows": 2,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

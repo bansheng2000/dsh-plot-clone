@@ -1,0 +1,41 @@
+# 系统模板：bubble
+# 规格来自 editaplot（Apache-2.0），渲染实现由本 skill 自建；未收录其 runner.py / service.py
+id: bubble
+name_zh: 气泡关系图
+kind: system
+origin: editaplot
+category: general/multivariate
+family: general_multivariate
+visibility: public
+status: spec-only
+source:
+  repo: https://github.com/hang-jin/editaplot
+  license: Apache-2.0
+  path: runtime/templates/bubble
+  commit: d93cd319c789d078da55acd75d120209b9288c83
+status_evidence: null
+gap: 无逐点符号尺寸映射：symbol_size 是全局标量，不是按列映射。
+renderer:
+  channel:
+    - "origin_plot:scatter"
+  helpers:
+    - symbol_size 只能给一个数
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: X/Y/Size 三列
+data_contract:
+  required_roles:
+    - x
+    - series
+    - size
+  optional_roles: []
+  min_columns: 3
+  required_columns_zh:
+    - 一个数值 X
+    - 一个数值 Y
+    - 一个正值 Size

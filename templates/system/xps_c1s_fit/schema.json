@@ -1,0 +1,12 @@
+{
+  "template_id": "xps_c1s_fit",
+  "required_roles": [],
+  "optional_roles": [],
+  "min_columns": null,
+  "min_rows": 20,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xlsx"
+  ]
+}

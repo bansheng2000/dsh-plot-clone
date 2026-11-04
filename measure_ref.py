@@ -128,7 +128,7 @@ def emit_card(path, dark=pc.DARK):
             deco = "装饰带高/绘图高 %.2f%%（%d px，kind=%s）" % (
                 bd["pct_plot_h"], bd["height_px"], bd["kind"])
             if bd["kind"] == "gradient":
-                deco += "；渐变带数值偏小 → 台账记 rejected（第 1.5 步）"
+                deco += "；渐变带数值偏小 → 台账记 rejected（第 3 步）"
             rows.append(("deco", deco, "measure_ref.py 带高占比"))
         else:
             rows.append(("deco", "unknown", "未检出装饰带（可能本来没有；要确认先 --band-hex）"))

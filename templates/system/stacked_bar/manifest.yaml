@@ -1,0 +1,40 @@
+# 系统模板：stacked_bar
+# 规格来自 editaplot（Apache-2.0），渲染实现由本 skill 自建；未收录其 runner.py / service.py
+id: stacked_bar
+name_zh: 堆叠柱状图
+kind: system
+origin: editaplot
+category: general/composition
+family: general_composition
+visibility: public
+status: spec-only
+source:
+  repo: https://github.com/hang-jin/editaplot
+  license: Apache-2.0
+  path: runtime/templates/stacked_bar
+  commit: d93cd319c789d078da55acd75d120209b9288c83
+status_evidence: null
+gap: "origin_plot:column 没有 stacked 参数；要堆叠得用 LabTalk set -s 或图层堆叠，未实测。"
+renderer:
+  channel:
+    - "origin_plot:column"
+  helpers:
+    - LabTalk set -s 未实测
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: 宽表
+data_contract:
+  required_roles:
+    - category
+    - series
+  optional_roles:
+    - error
+  min_columns: 3
+  required_columns_zh:
+    - 一列类别
+    - 至少两个非负数值组成列

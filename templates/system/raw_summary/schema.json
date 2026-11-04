@@ -1,0 +1,15 @@
+{
+  "template_id": "raw_summary",
+  "required_roles": [
+    "series"
+  ],
+  "optional_roles": [],
+  "min_columns": 1,
+  "min_rows": 2,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

@@ -1,0 +1,46 @@
+# 系统模板：circular_network
+# 规格来自 editaplot（Apache-2.0），渲染实现由本 skill 自建；未收录其 runner.py / service.py
+id: circular_network
+name_zh: 环形有向加权网络图
+kind: system
+origin: editaplot
+category: general/network
+family: general_relationship
+visibility: public
+status: spec-only
+source:
+  repo: https://github.com/hang-jin/editaplot
+  license: Apache-2.0
+  path: runtime/templates/circular_network
+  commit: d93cd319c789d078da55acd75d120209b9288c83
+status_evidence: null
+gap: 只有直线 origin_add_line，没有弧形/贝塞尔边；环形网络需要画弧。
+renderer:
+  channel:
+    - origin_add_line
+  helpers: []
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: 有向边长表；每行一条边；支持 1–4 个面板
+data_contract:
+  required_roles:
+    - panel
+    - source
+    - target
+    - weight
+  optional_roles:
+    - sign
+    - source_group
+    - target_group
+    - edge_label
+  min_columns: 4
+  required_columns_zh:
+    - Panel
+    - Source
+    - Target
+    - Weight

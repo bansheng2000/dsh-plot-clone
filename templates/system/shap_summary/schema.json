@@ -1,0 +1,23 @@
+{
+  "template_id": "shap_summary",
+  "required_roles": [
+    "feature",
+    "shap",
+    "feature_value"
+  ],
+  "optional_roles": [
+    "sample_id",
+    "feature_order",
+    "mean_abs_shap",
+    "feature_group",
+    "group_contribution"
+  ],
+  "min_columns": 3,
+  "min_rows": 6,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

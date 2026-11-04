@@ -1,0 +1,18 @@
+{
+  "template_id": "trajectory3d",
+  "required_roles": [
+    "x3d",
+    "y3d",
+    "z3d",
+    "series_id"
+  ],
+  "optional_roles": [],
+  "min_columns": 4,
+  "min_rows": 2,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

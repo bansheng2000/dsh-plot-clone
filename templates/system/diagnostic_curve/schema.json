@@ -1,0 +1,18 @@
+{
+  "template_id": "diagnostic_curve",
+  "required_roles": [
+    "x",
+    "series"
+  ],
+  "optional_roles": [
+    "reference"
+  ],
+  "min_columns": 2,
+  "min_rows": 2,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

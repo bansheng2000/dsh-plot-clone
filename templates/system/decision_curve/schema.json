@@ -1,0 +1,18 @@
+{
+  "template_id": "decision_curve",
+  "required_roles": [
+    "x",
+    "series",
+    "treat_all",
+    "treat_none"
+  ],
+  "optional_roles": [],
+  "min_columns": 4,
+  "min_rows": 2,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

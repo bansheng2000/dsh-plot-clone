@@ -1,0 +1,38 @@
+# 系统模板：dual_y
+# 本 skill 原生模板（不在 editaplot 的 47 个之内）；渲染实现由本 skill 自建
+id: dual_y
+name_zh: 双 Y 轴
+kind: system
+origin: native
+category: general/axis
+family: native
+visibility: public
+status: implemented
+source: null   # 本 skill 原生模板，不是 editaplot 的 47 个之一
+status_evidence:
+  verified_at: "2026-11-04"
+  evidence: evidence/dual_y.md
+gap: null
+renderer:
+  channel:
+    - "origin_plot_template:dual_y"
+  helpers: []
+  needs_labtalk: false
+io:
+  outputs:
+    - opju
+    - png
+    - pdf
+    - tif
+  data_layout: 宽表
+data_contract:
+  required_roles:
+    - x
+    - left
+    - right
+  optional_roles: []
+  min_columns: 3
+  required_columns_zh:
+    - 共享 X 列
+    - 左轴数值列
+    - 右轴数值列

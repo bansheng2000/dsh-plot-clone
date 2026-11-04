@@ -1,0 +1,20 @@
+{
+  "template_id": "density_ridgeline3d",
+  "required_roles": [
+    "condition_id",
+    "condition_position",
+    "density_x",
+    "density_solid",
+    "density_dashed",
+    "focal_x"
+  ],
+  "optional_roles": [],
+  "min_columns": 6,
+  "min_rows": 10,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

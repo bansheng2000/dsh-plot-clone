@@ -1,0 +1,20 @@
+{
+  "template_id": "forest",
+  "required_roles": [
+    "category",
+    "estimate",
+    "lower",
+    "upper"
+  ],
+  "optional_roles": [
+    "reference"
+  ],
+  "min_columns": 4,
+  "min_rows": 1,
+  "supported_extensions": [
+    ".csv",
+    ".txt",
+    ".xls",
+    ".xlsx"
+  ]
+}

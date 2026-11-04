@@ -1,6 +1,6 @@
 ---
 name: dsh-plot-clone
-description: 【仅限明确要求复刻时使用；只说"画图/作图"、没有参考图时不要用本 skill，走 origin-plotting 的 origin_plot_plan】把参考图（论文插图/别人的成品图/截图）复刻成 **Origin 数据图**的 SOP：第 0 步像素量测取色与几何比例 → 规格卡 → 图元到 Origin 通道映射 → 2~3 轮「渲染-对照-差量修正」→ verify + 交付。含参考图红线（不反推数据/不抄文字水印/不承诺 1:1）、能力表（能/只能逼近/做不到）与实测硬坑清单。当用户给参考图说"画成这样""复刻这张图""照着排版"时使用。可由领域 SOP（如 dsh-xps-peakfit）委派来只做风格对齐。触发词：复刻 / 照着画 / 画成这样 / 模仿这张图 / 参考图排版 / replicate figure。
+description: 【仅限明确要求复刻时使用；只说"画图/作图"、没有参考图时不要用本 skill，走 origin-plotting 的 origin_plot_plan】把参考图（论文插图/别人的成品图/截图）复刻成 **Origin 数据图**的 SOP：第 0 步像素量测取色与几何比例 → 规格卡 → 选模板（49 个系统模板，命中就走模板通道，未命中走自由构图）→ 图元到 Origin 通道映射 → 2~3 轮「渲染-对照-差量修正」→ verify + 交付。含参考图红线（不反推数据/不抄文字水印/不承诺 1:1）、能力表（能/只能逼近/做不到）与实测硬坑清单。当用户给参考图说"画成这样""复刻这张图""照着排版"时使用。可由领域 SOP（如 dsh-xps-peakfit）委派来只做风格对齐。触发词：复刻 / 照着画 / 画成这样 / 模仿这张图 / 参考图排版 / replicate figure。
 whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照着画"、"画成这样"、"模仿这张图"、"参考这张排版"）或领域 SOP 委派来做带参考图的风格对齐时使用。**用户只说"画个图/帮我作图"且没有参考图时不要用本 skill**，改走 `origin-plotting` 的 `origin_plot_plan`→`origin_execute_plan` 数据驱动选图型路径。
 ---
 
@@ -8,8 +8,8 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 
 > v2.0：改成「任意类型图」的方法论——新增第 0 步强制量测（`measure_ref.py`，颜色和几何比例都从像素来，禁止目测）、图元→通道映射表、能力表（能/只能逼近/做不到）。v1.x 的单图经验收敛进硬坑清单。
 > v2.1：加 `figure_metrics.py`（参考图 ↔ 成品图量化并排对照，收敛循环靠它而不是肉眼）；新增硬坑 11/12（COM 异常可 `origin_release` 救回但工程会丢、字号/点径的正确通道）。
-> v2.2：借 editaplot 的参考图契约——新增第 1.5 步「样式台账」（每字段三态 applied / retained_default / rejected + 来源优先级 + 允许清单），收尾加「缺读回=失败」；参考图只给文字**角色**，不给文字内容。
-> v2.7（2026-11-03）：科研投稿规格定档（第 1.2 步 + `pub_target`/`pub_limits`/`stats` + 自检 17 条 + `--pub-check` 可辨三查）；**同时把范围收回到只做 Origin 复刻**——矢量（Illustrator/SVG）与 3D（Blender）两条通道实测达不到可用水平，已移除，判型选通道那一步不再存在。
+> v2.2：借 editaplot 的参考图契约——新增第 3 步「样式台账」（每字段三态 applied / retained_default / rejected + 来源优先级 + 允许清单），收尾加「缺读回=失败」；参考图只给文字**角色**，不给文字内容。
+> v2.7（2026-11-03）：科研投稿规格定档（第 2 步 + `pub_target`/`pub_limits`/`stats` + 自检 17 条 + `--pub-check` 可辨三查）；**同时把范围收回到只做 Origin 复刻**——矢量（Illustrator/SVG）与 3D（Blender）两条通道实测达不到可用水平，已移除，判型选通道那一步不再存在。
 
 > v2.6（2026-11-01）：量测层重写——新增 `pixel_core.py`（阈值 / 取色 / 框检测 / 装饰带 / 刻度 / 点径 / 文字行只此一份）与 `test_synth.py`（29 条合成真值断言，改量测代码必须先跑它）；修 14 处实测缺陷（框坐标 −2px、渐变带报 3px、4x 刻度报 25px、点径上限砍掉大游程、细线色被降采样丢弃、半宽与多面板量不到框、两取色器口径不一、反斜杠路径打整条）；判据按实测精度重定（frame ≤1px / band <5% / dot ≤10% 或 ≤1px / tick ≤2px），做不到的三项（多段非单调渐变、>40px 大符号、无闭合框组图）明写进文档。
 
@@ -28,7 +28,7 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 
 判据一句话：**有没有"要照着的那张图"**。有 → 复刻（量测 → 规格卡 → 台账 → 差量收敛）；没有 → 数据驱动选图型（`origin_plot_plan` 的列画像 + questions 就是选型依据），两套流程不混。
 
-**科研投稿图再加一条**：只要图里有坐标轴 + 数据系列（误差棒 / 单位 / 显著性标记按需），规格卡必须同时填 `pub_target` / `pub_limits` / `stats`，并走第 1.2 步定档——**投稿合规优先于"像不像"**，两者冲突时先满足期刊要求再谈复刻相似度。
+**科研投稿图再加一条**：只要图里有坐标轴 + 数据系列（误差棒 / 单位 / 显著性标记按需），规格卡必须同时填 `pub_target` / `pub_limits` / `stats`，并走第 2 步定档——**投稿合规优先于"像不像"**，两者冲突时先满足期刊要求再谈复刻相似度。
 
 ## 第 0 步之前：会话隔离（每会话一个 Origin 工程）
 
@@ -97,13 +97,13 @@ python measure_ref.py 参考图.png --box band:330,282,470,300 --box peak:575,19
 ```
 python figure_metrics.py 参考图.png 成品图.png   # 并排输出可比的归一化量
 python figure_metrics.py 成品图.png --json --band-hex "#FCE4EA" --dot-hex "#DE90BA"
-python figure_metrics.py 成品图.png --pub-check --series-color "#0072B2,#E69F00"   # 第 1.2 步配色可辨三查
+python figure_metrics.py 成品图.png --pub-check --series-color "#0072B2,#E69F00"   # 第 2 步配色可辨三查
 python test_synth.py                            # 改过量测代码就跑这个：29 条合成真值断言
 ```
 
 **调用约定（缺测 ≠ 测得合格，必须能分辨）**：测不到的项在文本里是 `band: unmeasured(<reason>)`、在 `--json` 里是 `null` + `band_reason`，字段永不省略；`status` = `ok`（框+带+点径都测到）/ `partial`（框测到，带或点径没测到，或多面板）/ `none`（框没测到，其余读数不可比），rc 对应 `0/3/4`（`2` = 用法错误）。不给 `--band-hex` / `--dot-hex` 时按色板前几名猜，实际用的色值与来源（`palette_guess` / `cli`）写在输出里；`band: null` 且原因 `hex_not_found` 时先确认色值，别把「没测到」当成「没有装饰带」。多面板会给 `panel_count` + `panels[]`（逐面板 frame/band/tick），扁平字段置 `null` 并说明，不会拿两个面板混出一个假框。
 
-**投稿可辨（第 1.2 步配色三查）**：`figure_metrics.py 成品图.png --pub-check` 直接验——① 相邻系列灰度亮度差 ΔL* ≥ 10；② Brettel 1997 色盲模拟（protanopia + deuteranopia，取 ΔE00 较小者）≥ 10；③ 对白底 WCAG 对比度 ≥ 1.5:1。不给 `--series-color` 时从成品图主色提；每项输出实测值 + 阈值，不达标时列出冲突系列（序号 + hex）、命中的模拟种类，并从 Okabe-Ito 八色里给一个能同时过 ΔL* 与 ΔE00 的换色建议。rc `0/3/4` = ok/partial/fail（缺测项 `null` + `*_reason`，字段不省略），用法错误 `2`。
+**投稿可辨（第 2 步配色三查）**：`figure_metrics.py 成品图.png --pub-check` 直接验——① 相邻系列灰度亮度差 ΔL* ≥ 10；② Brettel 1997 色盲模拟（protanopia + deuteranopia，取 ΔE00 较小者）≥ 10；③ 对白底 WCAG 对比度 ≥ 1.5:1。不给 `--series-color` 时从成品图主色提；每项输出实测值 + 阈值，不达标时列出冲突系列（序号 + hex）、命中的模拟种类，并从 Okabe-Ito 八色里给一个能同时过 ΔL* 与 ΔE00 的换色建议。rc `0/3/4` = ok/partial/fail（缺测项 `null` + `*_reason`，字段不省略），用法错误 `2`。
 
 统一口径 = 各自画幅归一化：`frame` left/top/w/h %、`band` 装饰带高/绘图高（`kind` = solid / gradient ）、白缝 %、`tick` 刻度长、`TEXT` 每行字高（`kind` = label / title）、`dot` 点径、`PALETTE` 主色（hex+计数+占比，与 `extract_palette.py` 同口径）。
 
@@ -128,9 +128,9 @@ python test_synth.py                            # 改过量测代码就跑这个
 | fonts | 字体族（有无衬线）、轴标题/刻度/标注字号 pt、颜色 | `box` 取文字色 + 目测字形 |
 | pub_target | 投稿去向：期刊名 / 通用；成品宽度 mm（单栏 85 / 双栏 170 / 自定义）、成品高度上限 | 用户说；没说 → `unknown`，按 170 mm 画并注明 |
 | pub_limits | 最小字号 pt、线宽 pt 区间、位图 dpi、导出格式（矢量 + 位图各要什么） | 期刊 Guide for Authors；未见 → 用下方默认档并注明 |
-| stats | 误差棒含义（SD / SEM / 95% CI）+ n + 显著性标记的检验方法 | 用户给；没说 → `unknown`，**不许自造**（见第 1.2 步） |
+| stats | 误差棒含义（SD / SEM / 95% CI）+ n + 显著性标记的检验方法 | 用户给；没说 → `unknown`，**不许自造**（见第 2 步） |
 
-## 第 1.2 步：科研投稿规格定档（科研图必过；非科研图可跳）
+## 第 2 步：科研投稿规格定档（科研图必过；非科研图可跳）
 
 复刻对了但投不了稿 = 白做。**画之前**把这张表填进规格卡，缺项写 `unknown` 并在交付时说明。
 
@@ -162,7 +162,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 2. **不许自造统计**：用户没给 SD/SEM/CI、n、检验方法 → 标 `unknown` 并问，不许填"看起来合理"的值。
 3. **字号按最终印刷尺寸算**：先定成品 mm 再定 pt；170 mm 上用 6 pt，缩到 85 mm 单栏就变 3 pt，看不见。
 
-## 第 1.5 步：样式台账（每个字段必须落三态之一，不许含糊）
+## 第 3 步：样式台账（每个字段必须落三态之一，不许含糊）
 
 **来源优先级（高→低）**：① 用户明确给的值 ② 从参考图抽象出的、允许清单内的建议 ③ Origin/模板默认。
 用户的值压过参考图；**用户给的值非法（超范围/不存在）→ 直接报错要正确值，不许静默回退默认**。
@@ -195,7 +195,71 @@ python test_synth.py                            # 改过量测代码就跑这个
 
 **渐变填充的 `applied_unverified` 不算 applied**：`origin_edit_plot(fill_mode="gradient", fill_top_color=..., fill_bottom_color=...)` 只回报 `applied_unverified`（该通道没有读回）。必须导出 PNG 后在**峰顶与底部各取一个点**的 hex（`measure_ref.py --box name:x0,y0,x1,y1`），与设的起止色对上才记 `applied`；取不到或对不上 → 记 `rejected` 并写原因。台账「依据」列写成「导出后峰顶/底取色：<hex> / <hex>」。只凭 `applied_unverified` 或「看着像渐变」就记 applied = 交付失败。
 
-## 第 2 步：图元 → Origin 通道（照着查，别自己发明）
+## 第 4 步：选模板（有就加速，没有就自由构图）
+
+模板是**加速器，不是必经之路**。这一步只花几十秒：查得到就用，查不到就走自由构图，两条都是正常路径。
+
+### 1. 先验索引，再谈模板
+
+```
+python templates_index.py --check
+```
+
+- `rc=0`（输出 `STATUS PASS (N templates)`）→ 索引可用，进第 2 小步。
+- `rc=2`（`ERROR index not found`）→ **模板库不可用**。原话告诉用户「本次没有模板库，走自由构图」，直接跳到第 5 步。**不许装作有模板**，也不许凭记忆报一个模板名。
+- `rc=1`（有 `FAIL` 行）→ 索引坏了。把 FAIL 原文贴给用户，同样走自由构图。
+
+### 2. 列三组模板，说清差别
+
+```
+python templates_index.py --list
+```
+
+输出固定三组：
+
+| 组 | 是什么 | 谁维护 |
+|---|---|---|
+| **收藏（置顶）** | 用户标了「以后还用」的模板 id，只存 id + 收藏时间，**不复制目录** | 用户（`templates/favorites.json`） |
+| **系统模板** | 随交付发的 49 个（47 个规格来自 editaplot + 2 个本 skill 原生），按 `category` 分组 | 本 skill |
+| **用户模板** | 用户自己存的（一次成功交付后保存），可改可删 | 用户（`templates/user/`） |
+
+筛选用 `--group system|user|favorites`、`--status implemented|spec-only`。
+
+### 3. 命中 `implemented` → 按模板的通道走
+
+`renderer.channel` 是主通道，`renderer.helpers` 是辅助，例如：
+
+```
+origin_plot(worksheet=..., plot_type="column", y_columns=[...], yerr_column="SD")   # origin_plot:column
+origin_plot_template(template_id="stacked_spectra", data={...})                     # origin_plot_template:stacked_spectra
+origin_labtalk(script="plotm im:=[M001]1!1 plot:=105 ogl:=[<new>]!;")               # origin_labtalk（heatmap）
+```
+
+同时读同目录的 `data_contract.md`（要什么列）和 `visual_contract.md`（视觉判据 + 实测补充），把它们当第 1 步规格卡的**默认值**；用户明说的优先于模板默认。
+
+### 4. 命中 `spec-only` → 必须原话说明，绝不静默降级
+
+原话告诉用户：
+
+> 这个图型我只有规格、渲染还没对接（gap: <把 `index.json` 里那条 gap 原文贴出来>）。
+
+然后给两个选择让用户挑：
+
+1. **自由构图**：按第 5 步的图元映射表自己搭，能达到什么程度如实说（缺什么看 gap）。
+2. **换一个 `implemented` 的近似图型**：从 `--status implemented` 里挑视觉上能替代的（例如 `violin` 不可用时用 `box` + 散点），并说明会丢掉什么信息。
+
+**不许静默降级成自由构图**——用户有权知道他要的图型我们到底有没有。
+
+### 5. 未命中 → 自由构图
+
+索引里没有这个图型（或用户要的是参考图那种非常规构图）→ 直接进第 5 步。这是**正常路径**，不是失败。
+
+### 收尾两个动作（交付成功后再问，不要提前问）
+
+- **存成用户模板**：用户说「这张以后还能用」→ 建 `templates/user/<id>/`：`manifest.yaml`（图型 / dtype / 输出格式）+ `data_contract.md` + `visual_contract.md` + `applicability.md`（什么数据不该用它）+ `artifact.json`（成品图 **sha256 + 路径 + 尺寸**）。**不存数据、不存拟合结果、不存标注文字**；图只存哈希，不把裸图塞进仓库。
+- **收藏**：用户说「收藏」→ 只往 `templates/favorites.json` 加 `{"id": "...", "added_at": "..."}`，**不复制目录**（复制就有两份源，改一份忘一份）。
+
+## 第 5 步：图元 → Origin 通道（照着查，别自己发明）
 
 | 参考图里的元素 | Origin 通道 | 关键点 |
 |---|---|---|
@@ -213,7 +277,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 | 页面尺寸 / 图层几何 | `origin_edit_page(page_size_cm={"width":8.9,"height":6.5}, layer_geometry_pct={...})` | 用第 0 步量到的 % |
 | 导出 | 三件套：`origin_export(fmt="png", width>=1800)` + `origin_export(fmt="pdf")` + `origin_save_project(.opju)`；整包 `origin_export_delivery` | 导出后裁掉页面外的杂散对象比在 Origin 里找快 |
 
-## 第 3 步：能力表（接活前先对照，别承诺做不到的）
+## 第 6 步：能力表（接活前先对照，别承诺做不到的）
 
 | 能做到 | 说明 |
 |---|---|
@@ -238,10 +302,10 @@ python test_synth.py                            # 改过量测代码就跑这个
 | 像素级 1:1 | 不承诺；差量表为空即交付 |
 | 参考图有两份数据而用户只有一份 | 如实说"少一个面板"，不复制数据凑数 |
 
-## 第 4 步：收敛循环（照跑，最多 3 轮）
+## 第 7 步：收敛循环（照跑，最多 3 轮）
 1. `origin_view_graph(graph)` 看自己画的；像素级差异用导出后取色核对，别只靠肉眼。
 2. 与参考图**逐字段**对照，只列**差的项**：`字段 | 现状 | 目标 | 动作`。
-3. 一次 `origin_edit_*` / 一条 LabTalk 改完（多句合并进一个 call）→ 回第 1 步。
+3. 一次 `origin_edit_*` / 一条 LabTalk 改完（多句合并进一个 call）→ 回到本循环第 1 条。
 4. 连续两轮差量表为空 → 停；仍有 unknown → 如实告诉用户哪几项对不上。
 
 ## 回复格式（五段，结论/建议必用）
@@ -258,7 +322,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 
 这条与「缺读回 = 失败」互补：**文字层**由五段式兜底（结论必须有可执行判定），**文件层**由 `verify_deliverable.py` + `origin_verify_graph` 兜底（文件与对象属性必须有读回）；两层都过，结论才算过。
 
-## 第 5 步：收尾（完成判据）
+## 第 8 步：收尾（完成判据）
 - **先跑文件层硬检查**：`python verify_deliverable.py 成品.png 成品.pdf 成品.opju --min-width 1800`——三个文件存在且非空、同 basename、PNG 宽 ≥1800，逐项 PASS/FAIL，rc 非 0 不许交付。它只查文件层；图里的对象属性仍归 `origin_verify_graph`。
 - `origin_verify_graph(graph, expected_series=卡上系列数, min_font_pt=8)`：`fail` 必修，`warn` 提一句。
 - **缺读回 = 失败**：台账里每个 `applied` 必须有读回（verify 的对象属性读数，或导出后取像素）。只有导出 PNG/PDF 存在不算成功；读不回就降级，不靠"看着像"。文件层由 `verify_deliverable.py` 兜底，对象层由 `origin_verify_graph` 兜底，两层都过才算交付。
@@ -266,7 +330,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 - 页面尺寸按卡 canvas 定；PNG 宽度 ≥1800。
 - 回复 = 交付文件路径 + 差量表结论（哪几项没对齐、为什么，含能力表里的"只能逼近/做不到"）。
 
-## 交付前自检（17 条有一条 no 就别交付）
+## 交付前自检（18 条有一条 no 就别交付）
 1. 数据一项都不来自参考图像素？ 2. 系列数 = 卡上？ 3. 每条颜色 = 卡上 hex（像素验过，不是"差不多"）？
 4. 轴标题含单位、范围一致？ 5. 次轴/反向轴/刻度朝内朝外按要求？ 6. 图例位置字号对齐？
 7. 页面尺寸与图层几何 = 卡上？ 8. verify 无 fail？ 9. 填充形态（纯色/渐变/起止色/下边界）与卡一致？
@@ -278,6 +342,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 15. 相邻系列在**灰度**下也能分（亮度差 ≥10）且红绿对色盲可辨（ΔE00 ≥10；用 Okabe-Ito 一类安全色板最省事）？——跑 `figure_metrics.py 成品图.png --pub-check` 拿实测值，别靠眼睛。
 16. 误差棒写明了 SD/SEM/CI 与 n？显著性标记有检验方法与阈值？**没有任何一个是自造的**？
 17. 字体族若期刊要求而本机改不了 → 交付说明里写了「请在 Origin GUI 把字体族改成 X」？
+18. **PNG 上没有 Origin demo 水印**？—— 跑 `verify_deliverable.py`，它按「青色 `#00FFFF` 行带 ≥5 条 + 行剖面自相关峰值 ≥0.6（等周期重复）」判定平铺水印，青色数据不会误报（行带只有 2 条）；FAIL 就是「导出图不可用」，必须停下告知用户 Origin 授权状态，不许静默交付、不许想办法去水印。
 
 ## 硬坑清单（实测，别重踩）
 1. **LabTalk 数据集名 = 列短名**（`Book3_H`），写列名（`Comp1`）静默无效：导出字节和上次一模一样就是没生效的判据。动手前 `origin_inspect_graph` 读真实 dataset 名。

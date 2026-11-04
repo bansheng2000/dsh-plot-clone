@@ -1,0 +1,2153 @@
+{
+ "schema_version": 1,
+ "source": {
+  "repo": "https://github.com/hang-jin/editaplot",
+  "license": "Apache-2.0",
+  "commit": "d93cd319c789d078da55acd75d120209b9288c83",
+  "fetched_at": "2026-11-03T21:30:00+08:00",
+  "note": "规格来自 editaplot，渲染实现由本 skill 自建；未收录其 runner.py / service.py",
+  "template_count": 47
+ },
+ "templates": [
+  {
+   "id": "bar",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "柱状图（可选误差）",
+   "category": "general/statistics",
+   "family": "general_statistical",
+   "visibility": "public",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-04",
+    "evidence": "evidence/bar.md"
+   },
+   "gap": null,
+   "renderer": {
+    "channel": [
+     "origin_plot:column"
+    ],
+    "helpers": [
+     "origin_plot(yerr_column)"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "category",
+     "series"
+    ],
+    "optional_roles": [
+     "error"
+    ],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "类别列",
+     "一个或多个数值系列"
+    ]
+   },
+   "path": "system/bar"
+  },
+  {
+   "id": "bland_altman",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "Bland–Altman 一致性图",
+   "category": "medical-ai/agreement",
+   "family": "medical_ai_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:scatter 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:scatter"
+    ],
+    "helpers": [
+     "origin_add_line x3"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "每行一个明确配对病例，三条参考值列重复同一个输入值"
+   },
+   "data_contract": {
+    "required_roles": [
+     "mean",
+     "difference",
+     "bias",
+     "loa_lower",
+     "loa_upper"
+    ],
+    "optional_roles": [],
+    "min_columns": 5,
+    "required_columns_zh": [
+     "Mean",
+     "Difference",
+     "Bias",
+     "Lower LoA",
+     "Upper LoA"
+    ]
+   },
+   "path": "system/bland_altman"
+  },
+  {
+   "id": "bubble",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "气泡关系图",
+   "category": "general/multivariate",
+   "family": "general_multivariate",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "无逐点符号尺寸映射：symbol_size 是全局标量，不是按列映射。",
+   "renderer": {
+    "channel": [
+     "origin_plot:scatter"
+    ],
+    "helpers": [
+     "symbol_size 只能给一个数"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "X/Y/Size 三列"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series",
+     "size"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "一个数值 X",
+     "一个数值 Y",
+     "一个正值 Size"
+    ]
+   },
+   "path": "system/bubble"
+  },
+  {
+   "id": "calibration_curve",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "医学模型校准曲线",
+   "category": "medical-ai/reliability",
+   "family": "medical_ai_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:scatter 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:scatter"
+    ],
+    "helpers": [
+     "origin_fit(plot_curve)",
+     "origin_add_line 45 度"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "一行一个预计算概率箱"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series",
+     "count"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "Predicted probability",
+     "Observed fraction",
+     "Bin count"
+    ]
+   },
+   "path": "system/calibration_curve"
+  },
+  {
+   "id": "circular_network",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "环形有向加权网络图",
+   "category": "general/network",
+   "family": "general_relationship",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "只有直线 origin_add_line，没有弧形/贝塞尔边；环形网络需要画弧。",
+   "renderer": {
+    "channel": [
+     "origin_add_line"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "有向边长表；每行一条边；支持 1–4 个面板"
+   },
+   "data_contract": {
+    "required_roles": [
+     "panel",
+     "source",
+     "target",
+     "weight"
+    ],
+    "optional_roles": [
+     "sign",
+     "source_group",
+     "target_group",
+     "edge_label"
+    ],
+    "min_columns": 4,
+    "required_columns_zh": [
+     "Panel",
+     "Source",
+     "Target",
+     "Weight"
+    ]
+   },
+   "path": "system/circular_network"
+  },
+  {
+   "id": "confusion_matrix",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "医学分类混淆矩阵",
+   "category": "medical-ai/performance",
+   "family": "medical_ai_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "热图通道已有（plotm plot:=105），但单元格数字标注要逐个 origin_annotate，分类标签到轴刻度的映射也没验证过。",
+   "renderer": {
+    "channel": [
+     "origin_labtalk",
+     "origin_annotate"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽矩阵"
+   },
+   "data_contract": {
+    "required_roles": [
+     "category",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "第一列 Actual class",
+     "后续每列一个 Predicted class 的计数或已给比例"
+    ]
+   },
+   "path": "system/confusion_matrix"
+  },
+  {
+   "id": "cv",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "CV 循环伏安曲线",
+   "category": "electrochemistry/cv",
+   "family": "electrochemistry",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "电位或电压列",
+     "一个或多个电流系列"
+    ]
+   },
+   "path": "system/cv"
+  },
+  {
+   "id": "decision_curve",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "医学决策曲线分析",
+   "category": "medical-ai/clinical-utility",
+   "family": "medical_ai_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [
+     "origin_add_line 零参考线"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表，每条曲线一列"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series",
+     "treat_all",
+     "treat_none"
+    ],
+    "optional_roles": [],
+    "min_columns": 4,
+    "required_columns_zh": [
+     "Threshold",
+     "一个或多个模型 Net benefit",
+     "Treat all",
+     "Treat none"
+    ]
+   },
+   "path": "system/decision_curve"
+  },
+  {
+   "id": "density_ridgeline3d",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "三维双轮廓密度曲线与基线焦点",
+   "category": "general/distribution-3d",
+   "family": "general_distribution",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "3D 只有 surface / scatter，没有 3D 偏移曲线；ridgeline 需要每条密度曲线各自在第三轴上偏移。",
+   "renderer": {
+    "channel": [
+     "origin_plot3d:surface"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "mixed-wide；每行一个横轴位置；同一行同时提供 Solid Density 与 Dashed Density"
+   },
+   "data_contract": {
+    "required_roles": [
+     "condition_id",
+     "condition_position",
+     "density_x",
+     "density_solid",
+     "density_dashed",
+     "focal_x"
+    ],
+    "optional_roles": [],
+    "min_columns": 6,
+    "required_columns_zh": [
+     "Condition ID（条件标识）",
+     "Condition Position（带单位数值）",
+     "Density X（带单位数值）",
+     "Solid Density（非负数值）",
+     "Dashed Density（非负数值）",
+     "Focal X（每组仅一行非空）"
+    ]
+   },
+   "path": "system/density_ridgeline3d"
+  },
+  {
+   "id": "diagnostic_curve",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "医学诊断 ROC / PR 曲线",
+   "category": "medical-ai/performance",
+   "family": "medical_ai_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表，每个模型一列"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [
+     "reference"
+    ],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "ROC：FPR + 一个或多个 TPR；PR：Recall + 一个或多个 Precision"
+    ]
+   },
+   "path": "system/diagnostic_curve"
+  },
+  {
+   "id": "dsc",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "DSC 差示扫描量热",
+   "category": "thermal-analysis/dsc",
+   "family": "thermal_analysis",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [
+     "origin_edit_plot(fill)"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "Temperature/温度列",
+     "一个或多个 Heat Flow/热流数值系列"
+    ]
+   },
+   "path": "system/dsc"
+  },
+  {
+   "id": "dual_y",
+   "kind": "system",
+   "origin": "native",
+   "name_zh": "双 Y 轴",
+   "category": "general/axis",
+   "family": "native",
+   "visibility": "public",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-04",
+    "evidence": "evidence/dual_y.md"
+   },
+   "gap": null,
+   "renderer": {
+    "channel": [
+     "origin_plot_template:dual_y"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "left",
+     "right"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "共享 X 列",
+     "左轴数值列",
+     "右轴数值列"
+    ]
+   },
+   "path": "system/dual_y"
+  },
+  {
+   "id": "eis",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "EIS 阻抗谱",
+   "category": "electrochemistry/eis",
+   "family": "electrochemistry",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:scatter 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:scatter"
+    ],
+    "helpers": [
+     "origin_edit_axis 等比例"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "Nyquist：Z 实部 + Z 虚部",
+     "或 Bode：频率 + 阻抗模/相位"
+    ]
+   },
+   "path": "system/eis"
+  },
+  {
+   "id": "event_raster",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "已提供事件与试次栅格",
+   "category": "research/signals",
+   "family": "research_imaging",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "没有「按分类逐行画竖线」的通道，只能靠 N 列数据硬凑（100 个 trial 就是 100 列）。",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "每行一个已提供事件，或一个空Time的试次清单项"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "category",
+     "series_id"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "Time (s)",
+     "Trial",
+     "Condition"
+    ]
+   },
+   "path": "system/event_raster"
+  },
+  {
+   "id": "flim_phasor",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "FLIM 荧光寿命相量图",
+   "category": "research/fluorescence",
+   "family": "research_imaging",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "需要同层混合图型（半圆参考线 + 散点），除 fit 路径外没有 typed 通道能在同层追加异型曲线；且需要逐点颜色映射 + 色标。",
+   "renderer": {
+    "channel": [
+     "origin_plot:scatter"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "长表，每行一个相量观测"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series",
+     "category"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "G",
+     "S",
+     "Group"
+    ]
+   },
+   "path": "system/flim_phasor"
+  },
+  {
+   "id": "forest",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "森林效应图",
+   "category": "general/effect",
+   "family": "general_effect",
+   "visibility": "public",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-04",
+    "evidence": "evidence/forest.md"
+   },
+   "gap": null,
+   "renderer": {
+    "channel": [
+     "origin_plot_template:forest"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "每行一个对象"
+   },
+   "data_contract": {
+    "required_roles": [
+     "category",
+     "estimate",
+     "lower",
+     "upper"
+    ],
+    "optional_roles": [
+     "reference"
+    ],
+    "min_columns": 4,
+    "required_columns_zh": [
+     "Label",
+     "Estimate",
+     "CI Low",
+     "CI High"
+    ]
+   },
+   "path": "system/forest"
+  },
+  {
+   "id": "ftir",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "FTIR / IR 红外光谱",
+   "category": "spectroscopy/infrared",
+   "family": "spectroscopy",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [
+     "origin_edit_axis(reverse)"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "Wavenumber/波数列",
+     "一个或多个 Absorbance/Transmittance 数值系列"
+    ]
+   },
+   "path": "system/ftir"
+  },
+  {
+   "id": "grouped_box",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "分组箱线与原始点图",
+   "category": "statistics/grouped-distribution",
+   "family": "statistical_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "origin_plot:box 源码只取 y_columns[0]（origin_engine.py:997-1005），x_column 被忽略；LabTalk plot:=206 画出来是误差棒（与 plot:=263 输出逐字节相同，13236 B）；模板 BOX.otpu 只能走会弹模态框的 win -t plot。缺的是插件侧的多数据集箱线通道。",
+   "renderer": {
+    "channel": [
+     "origin_plot:box"
+    ],
+    "helpers": [
+     "origin_labtalk(plot:=206 实测失败)"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表；每列是一组原始观测，允许列尾缺失"
+   },
+   "data_contract": {
+    "required_roles": [
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "至少四个数值列，列名写成 Category | Group"
+    ]
+   },
+   "path": "system/grouped_box"
+  },
+  {
+   "id": "heatmap",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "自适应矩阵热力图",
+   "category": "general/matrix",
+   "family": "general_matrix",
+   "visibility": "public",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-04",
+    "evidence": "evidence/heatmap.md"
+   },
+   "gap": null,
+   "renderer": {
+    "channel": [
+     "origin_labtalk"
+    ],
+    "helpers": [
+     "plotm im:=[矩阵]1!1 plot:=105 ogl:=[<new>]!"
+    ],
+    "needs_labtalk": true
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表；行是类别，数值列是热力图列"
+   },
+   "data_contract": {
+    "required_roles": [
+     "category",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "一列行类别",
+     "至少两个数值系列"
+    ]
+   },
+   "path": "system/heatmap"
+  },
+  {
+   "id": "histogram",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "直方分布图",
+   "category": "general/distribution",
+   "family": "general_distribution",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:histogram 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:histogram"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 1,
+    "required_columns_zh": [
+     "一个或多个原始数值列，每列至少 5 个观测"
+    ]
+   },
+   "path": "system/histogram"
+  },
+  {
+   "id": "horizontal_bar",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "横向分组条形图",
+   "category": "general/comparison",
+   "family": "general_comparison",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:bar 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:bar"
+    ],
+    "helpers": [
+     "yerr_column"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "category",
+     "series"
+    ],
+    "optional_roles": [
+     "error"
+    ],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "一列类别",
+     "一个或多个数值系列"
+    ]
+   },
+   "path": "system/horizontal_bar"
+  },
+  {
+   "id": "line_error",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "带误差折线图",
+   "category": "general/statistics",
+   "family": "general_statistical",
+   "visibility": "public",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-04",
+    "evidence": "evidence/line_error.md"
+   },
+   "gap": null,
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [
+     "origin_plot(yerr_column)"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series",
+     "error"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "一个数值 X 列",
+     "一个或多个中心值列",
+     "每个中心值的配对误差列"
+    ]
+   },
+   "path": "system/line_error"
+  },
+  {
+   "id": "lsv",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "LSV 线性扫描伏安曲线",
+   "category": "electrochemistry/lsv",
+   "family": "electrochemistry",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "电位或电压列",
+     "一个或多个电流系列"
+    ]
+   },
+   "path": "system/lsv"
+  },
+  {
+   "id": "multi_panel",
+   "kind": "system",
+   "origin": "native",
+   "name_zh": "多面板纵向堆叠",
+   "category": "general/panel",
+   "family": "native",
+   "visibility": "public",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-04",
+    "evidence": "evidence/multi_panel.md"
+   },
+   "gap": null,
+   "renderer": {
+    "channel": [
+     "origin_plot_template:multi_panel"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "panel"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "共享 X 列",
+     "每个面板一个数值列（至少 2 个）"
+    ]
+   },
+   "path": "system/multi_panel"
+  },
+  {
+   "id": "nmr",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "NMR 核磁共振谱",
+   "category": "spectroscopy/nmr",
+   "family": "spectroscopy",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [
+     "origin_annotate",
+     "origin_edit_axis(reverse)"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "Chemical Shift/化学位移列",
+     "一个或多个 Intensity/强度数值系列"
+    ]
+   },
+   "path": "system/nmr"
+  },
+  {
+   "id": "paired_trajectory",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "配对与纵向轨迹图",
+   "category": "medical-ai/paired",
+   "family": "medical_ai_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表；列名是稳定 Subject ID"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "一个数值 Time/Visit/Condition index",
+     "每个 Subject 一列数值"
+    ]
+   },
+   "path": "system/paired_trajectory"
+  },
+  {
+   "id": "percent_stacked_bar",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "百分比堆叠柱状图",
+   "category": "general/composition",
+   "family": "general_composition",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "同 stacked_bar：column 无 stacked 参数，百分比堆叠同样缺。",
+   "renderer": {
+    "channel": [
+     "origin_plot:column"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "category",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "一列类别",
+     "至少两个非负数值组成列"
+    ]
+   },
+   "path": "system/percent_stacked_bar"
+  },
+  {
+   "id": "pie",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "二维饼图",
+   "category": "general/composition",
+   "family": "general_composition",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "没有饼图通道：origin_plot 的 plot_type 枚举里没有 pie，plotxy 的 plot:= 也不按图型 ID 解释（LabTalk 探针批已证伪）。",
+   "renderer": {
+    "channel": [],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "两列长表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "category",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "一列类别",
+     "恰好一个非负数值列"
+    ]
+   },
+   "path": "system/pie"
+  },
+  {
+   "id": "pl",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "PL 与 TRPL 光致发光谱",
+   "category": "spectroscopy/photoluminescence",
+   "family": "spectroscopy",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [
+     "origin_fit(plot_curve)"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表；稳态多条件系列按源列顺序保留"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [
+     "fit"
+    ],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "Wavelength 或 Time",
+     "一个或多个 PL 数值系列"
+    ]
+   },
+   "path": "system/pl"
+  },
+  {
+   "id": "radar",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "多指标雷达图",
+   "category": "general/multivariate",
+   "family": "general_multivariate",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "plotxy plot:=192（IDM_PLOT_POLAR）画出的是普通直角坐标折线，不是雷达；Radar.otpu 模板存在，但只能走会弹模态框的模板通道。缺的是雷达图型通道。",
+   "renderer": {
+    "channel": [
+     "origin_labtalk"
+    ],
+    "helpers": [
+     "plot:=192 实测失败"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表；每行一个指标，每个数值列一个对象"
+   },
+   "data_contract": {
+    "required_roles": [
+     "category",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "指标列",
+     "至少两个非负数值系列"
+    ]
+   },
+   "path": "system/radar"
+  },
+  {
+   "id": "raincloud",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "Raincloud 原始分布图",
+   "category": "medical-ai/distribution",
+   "family": "medical_ai_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "半小提琴 + 箱 + 抖动三层混合；且小提琴通道本身还没通（见 violin）。",
+   "renderer": {
+    "channel": [],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表，每个数值列代表一组"
+   },
+   "data_contract": {
+    "required_roles": [
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 1,
+    "required_columns_zh": [
+     "一个或多个原始数值列，每列至少 5 个观测"
+    ]
+   },
+   "path": "system/raincloud"
+  },
+  {
+   "id": "raw_summary",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "原始点汇总图",
+   "category": "general/distribution",
+   "family": "general_distribution",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "原始点 + 均值±误差是同层混合图型，除 fit 路径外不能在同一层追加异型曲线。",
+   "renderer": {
+    "channel": [
+     "origin_plot:scatter"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表，每个数值列代表一组"
+   },
+   "data_contract": {
+    "required_roles": [
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 1,
+    "required_columns_zh": [
+     "一个或多个原始数值列"
+    ]
+   },
+   "path": "system/raw_summary"
+  },
+  {
+   "id": "sankey",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "桑基流向图",
+   "category": "general/flow",
+   "family": "general_flow",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "plotxy plot:=106（IDM_PLOT_SANKEY）不接受 Source/Target/Weight 三列布局，画出来是乱填充；桑基需要节点-边布局引擎（把三元组转成节点坐标 + 边曲线），不是换个图型代码能解决。",
+   "renderer": {
+    "channel": [
+     "origin_labtalk"
+    ],
+    "helpers": [
+     "plot:=106 实测失败"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "三列长表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "source",
+     "target",
+     "value"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "来源 Source",
+     "目标 Target",
+     "正数权重 Value"
+    ]
+   },
+   "path": "system/sankey"
+  },
+  {
+   "id": "scatter",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "通用散点图",
+   "category": "general/relationship",
+   "family": "general_relationship",
+   "visibility": "public",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-04",
+    "evidence": "evidence/scatter.md"
+   },
+   "gap": null,
+   "renderer": {
+    "channel": [
+     "origin_plot:scatter"
+    ],
+    "helpers": [
+     "origin_fit(plot_curve)"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "一个数值 X 列",
+     "一个或多个数值 Y 列"
+    ]
+   },
+   "path": "system/scatter"
+  },
+  {
+   "id": "shap_dashboard",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "SHAP 分栏重要性与双层环图",
+   "category": "model-interpretability",
+   "family": "medical_ai_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "需要逐点颜色映射 + 色标 + 多面板联动，typed 通道三者都没有。",
+   "renderer": {
+    "channel": [
+     "origin_plot_template:multi_panel"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "长表，每行一个样本-特征观测"
+   },
+   "data_contract": {
+    "required_roles": [
+     "feature",
+     "shap",
+     "feature_value",
+     "feature_group"
+    ],
+    "optional_roles": [
+     "sample_id",
+     "feature_order",
+     "mean_abs_shap",
+     "group_contribution"
+    ],
+    "min_columns": null,
+    "required_columns_zh": [
+     "Feature",
+     "SHAP value",
+     "Feature value",
+     "Feature Group"
+    ]
+   },
+   "path": "system/shap_dashboard"
+  },
+  {
+   "id": "shap_summary",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "预计算 SHAP 汇总图",
+   "category": "medical-ai/interpretability",
+   "family": "medical_ai_evidence",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "beeswarm 靠逐点颜色映射（color-by-column），origin_plot:scatter 没有这个参数。",
+   "renderer": {
+    "channel": [
+     "origin_plot:scatter"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "长表，每行是一个样本-特征观测"
+   },
+   "data_contract": {
+    "required_roles": [
+     "feature",
+     "shap",
+     "feature_value"
+    ],
+    "optional_roles": [
+     "sample_id",
+     "feature_order",
+     "mean_abs_shap",
+     "feature_group",
+     "group_contribution"
+    ],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "Feature",
+     "SHAP value",
+     "Feature value"
+    ]
+   },
+   "path": "system/shap_summary"
+  },
+  {
+   "id": "signal_stack",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "多通道信号与共同幅度尺",
+   "category": "research/signals",
+   "family": "research_imaging",
+   "visibility": "public",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-04",
+    "evidence": "evidence/signal_stack.md"
+   },
+   "gap": null,
+   "renderer": {
+    "channel": [
+     "origin_plot_template:stacked_spectra"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "长表，每行一个通道的一个已处理观测"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series",
+     "category"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "Time (s)",
+     "Channel",
+     "Amplitude (uV)"
+    ]
+   },
+   "path": "system/signal_stack"
+  },
+  {
+   "id": "stacked_bar",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "堆叠柱状图",
+   "category": "general/composition",
+   "family": "general_composition",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "origin_plot:column 没有 stacked 参数；要堆叠得用 LabTalk set -s 或图层堆叠，未实测。",
+   "renderer": {
+    "channel": [
+     "origin_plot:column"
+    ],
+    "helpers": [
+     "LabTalk set -s 未实测"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "category",
+     "series"
+    ],
+    "optional_roles": [
+     "error"
+    ],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "一列类别",
+     "至少两个非负数值组成列"
+    ]
+   },
+   "path": "system/stacked_bar"
+  },
+  {
+   "id": "time_frequency",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "时间–频率物理矩阵",
+   "category": "research/neurophysiology",
+   "family": "research_imaging",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_matrix_write + origin_plot_contour:contour_fill 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_matrix_write",
+     "origin_plot_contour:contour_fill"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "长表，每行一个时间×频率单元"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "frequency_axis",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "Time (s)",
+     "Frequency (Hz)",
+     "Power (dB)"
+    ]
+   },
+   "path": "system/time_frequency"
+  },
+  {
+   "id": "trajectory3d",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "三维多条件 Nyquist 轨迹",
+   "category": "electrochemistry/eis-3d",
+   "family": "electrochemistry",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "3D 线在 LabTalk 里静默无操作：plotxyz plot:=240 返回 executed 但不建任何图页；typed 通道只有 origin_plot3d 的 surface/scatter，没有 3D 折线。",
+   "renderer": {
+    "channel": [
+     "origin_plot3d:scatter"
+    ],
+    "helpers": [
+     "plotxyz plot:=240 实测无操作"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "长表；每行一个 XYZ 点；Series 标识 1–6 条轨迹"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x3d",
+     "y3d",
+     "z3d",
+     "series_id"
+    ],
+    "optional_roles": [],
+    "min_columns": 4,
+    "required_columns_zh": [
+     "Zreal（数值）",
+     "真实第三变量与单位（数值）",
+     "-Zimag（数值）",
+     "Series（组名）"
+    ]
+   },
+   "path": "system/trajectory3d"
+  },
+  {
+   "id": "trend",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "多系列趋势折线图",
+   "category": "general/trend",
+   "family": "general_trend",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "连续 X 列",
+     "一个或多个数值系列"
+    ]
+   },
+   "path": "system/trend"
+  },
+  {
+   "id": "uv_vis",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "UV–Vis 吸收/透射与 Tauc 插图",
+   "category": "spectroscopy/uv-vis",
+   "family": "spectroscopy",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [
+     "origin_plot_template:dual_y"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表；多光谱系列按源列顺序保留；可选插图列允许列尾空白"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [
+     "photon_energy",
+     "tauc",
+     "tauc_fit",
+     "bandgap"
+    ],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "Wavelength",
+     "一个或多个 Absorbance/Transmittance 系列"
+    ]
+   },
+   "path": "system/uv_vis"
+  },
+  {
+   "id": "violin",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "小提琴分布图",
+   "category": "general/distribution",
+   "family": "general_distribution",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "plotxy plot:=263（IDM_PLOT_SPLIT_VIOLIN）画出的是误差棒，不是小提琴；HalfViolin.otpu / Marginal_Violin.otpu 模板存在，但模板通道会弹模态框卡死 COM。缺的是不弹框的小提琴通道。",
+   "renderer": {
+    "channel": [
+     "origin_labtalk"
+    ],
+    "helpers": [
+     "plot:=263 实测失败"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表，每个数值列代表一组"
+   },
+   "data_contract": {
+    "required_roles": [
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 1,
+    "required_columns_zh": [
+     "一个或多个原始数值列，每列至少 5 个观测"
+    ]
+   },
+   "path": "system/violin"
+  },
+  {
+   "id": "xas",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "XAS 吸收谱",
+   "category": "spectroscopy/xas",
+   "family": "spectroscopy",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot:line"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "能量列",
+     "一个或多个吸收信号列"
+    ]
+   },
+   "path": "system/xas"
+  },
+  {
+   "id": "xps",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "XPS",
+   "category": "spectroscopy/xps",
+   "family": "spectroscopy",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot_template:stacked_spectra 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot_template:stacked_spectra"
+    ],
+    "helpers": [
+     "origin_peak_fit"
+    ],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "结合能或动能列",
+     "至少一个强度/计数列"
+    ]
+   },
+   "path": "system/xps"
+  },
+  {
+   "id": "xps_adaptive",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "XPS Adaptive Spectrum",
+   "category": "chemistry/xps",
+   "family": "",
+   "visibility": "internal",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "editaplot 内部渲染适配器（xps 的渲染 profile），不是可独立选用的图型；收录它只为把 xps 的 profile 定义带过来。",
+   "renderer": {
+    "channel": [],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [],
+    "optional_roles": [],
+    "min_columns": 2,
+    "required_columns_zh": []
+   },
+   "path": "system/xps_adaptive"
+  },
+  {
+   "id": "xps_c1s_fit",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "XPS C 1s 拟合图",
+   "category": "chemistry/xps",
+   "family": "",
+   "visibility": "internal",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "editaplot 内部渲染适配器（xps 的渲染 profile），不是可独立选用的图型；收录它只为把 xps 的 profile 定义带过来。",
+   "renderer": {
+    "channel": [],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表"
+   },
+   "data_contract": {
+    "required_roles": [],
+    "optional_roles": [],
+    "min_columns": null,
+    "required_columns_zh": []
+   },
+   "path": "system/xps_c1s_fit"
+  },
+  {
+   "id": "xps_compare",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "XPS 多谱线对比",
+   "category": "spectroscopy/xps",
+   "family": "spectroscopy",
+   "visibility": "public",
+   "status": "spec-only",
+   "status_evidence": null,
+   "gap": "尚未实跑：预计 origin_plot_template:stacked_spectra 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "renderer": {
+    "channel": [
+     "origin_plot_template:stacked_spectra"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "宽表；第一条物理 X 列加两条或更多独立实测谱线"
+   },
+   "data_contract": {
+    "required_roles": [
+     "binding_energy",
+     "measured_series"
+    ],
+    "optional_roles": [],
+    "min_columns": 3,
+    "required_columns_zh": [
+     "Binding Energy/结合能列",
+     "至少两个独立实测 Intensity/Counts 数值系列"
+    ]
+   },
+   "path": "system/xps_compare"
+  },
+  {
+   "id": "xrd",
+   "kind": "system",
+   "origin": "editaplot",
+   "name_zh": "XRD 衍射图谱",
+   "category": "spectroscopy/xrd",
+   "family": "spectroscopy",
+   "visibility": "public",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-04",
+    "evidence": "evidence/xrd.md"
+   },
+   "gap": null,
+   "renderer": {
+    "channel": [
+     "origin_plot_template:xrd_pattern"
+    ],
+    "helpers": [],
+    "needs_labtalk": false
+   },
+   "io": {
+    "outputs": [
+     "opju",
+     "png",
+     "pdf",
+     "tif"
+    ],
+    "data_layout": "普通 XRD 宽表"
+   },
+   "data_contract": {
+    "required_roles": [
+     "x",
+     "series"
+    ],
+    "optional_roles": [
+     "background",
+     "difference",
+     "phase_tick",
+     "support",
+     "ignored"
+    ],
+    "min_columns": 2,
+    "required_columns_zh": [
+     "普通图谱：2θ 衍射角列 + 一个或多个强度列",
+     "精修图：X/2θ + Obs/实测 + Calc/计算"
+    ]
+   },
+   "path": "system/xrd"
+  }
+ ]
+}
