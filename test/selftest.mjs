@@ -656,6 +656,11 @@ function httpSend(url, method, body, headers = {}) {
   assert.match(src, /phase: "panel-error"/, "面板必须有渲染兜底上报（panel-error）");
   assert.match(src, /whiteSpace: "pre-wrap"/, "渲染兜底必须把 stack 显示出来（pre-wrap），不许白屏无痕迹");
   assert.match(src, /模板 · 加载中/, "顶层必须始终渲染一行标题（加载中 / 共 N 个）");
+  const visibleFallback = 'minHeight: "420px", height: "auto", background: "#20242c"';
+  assert.ok(
+    src.includes(visibleFallback),
+    `强可见兜底：.pc-wrap 的内联样式必须是 ${visibleFallback}（否则外层高度塌陷时整页不可见）`,
+  );
 
   const pkg = JSON.parse(fsMod.readFileSync(join(rootDir, "package.json"), "utf8"));
   assert.equal(pkg.exports["./client"], "./lib/client.js", "exports 必须暴露 ./client");
@@ -828,15 +833,38 @@ function httpSend(url, method, body, headers = {}) {
   const src = fsMod.readFileSync(join(rootDir, "lib", "client.js"), "utf8");
 
   /** 迷你 React：够跑这个组件的 hooks + jsx，不装 react-dom。 */
-  function mount(fetchImpl) {
+  /** 假 DOM：只为让 panel-rect 量到确定的数字（真宿主里这些来自 getBoundingClientRect）。 */
+function layoutDocument() {
+  const rect = (x, y, width, height) => () => ({ x, y, width, height });
+  const parent = {
+    getBoundingClientRect: rect(0, 0, 420, 520),
+    style: {},
+  };
+  const wrap = { getBoundingClientRect: rect(8, 40, 404, 520), parentElement: parent };
+  const card = { getBoundingClientRect: rect(16, 96, 126, 160), parentElement: wrap };
+  const node = { head: { appendChild: () => {} }, createElement: () => ({}) };
+  return {
+    ...node,
+    getElementById: (id) => (id === "dsh-plot-clone-tab-style" ? { id } : null),
+    querySelector: (sel) => {
+      if (sel === "[data-pc-wrap]") return wrap;
+      if (sel === "[data-template-id]") return card;
+      if (sel === ".pc-tab-title") return { getBoundingClientRect: rect(8, 8, 48, 20), parentElement: parent };
+      return null;
+    },
+  };
+}
+
+function mount(fetchImpl) {
     const hooks = [];
     const effects = [];
     let idx = 0;
     let dirty = false;
     let effectsDone = false;
     const sandbox = {
-      window: {},
-      document: { getElementById: () => null, head: { appendChild: () => {} }, createElement: () => ({}) },
+      window: { getComputedStyle: () => ({ display: "flex", height: "520px", overflow: "hidden" }) },
+      document: layoutDocument(),
+      requestAnimationFrame: (cb) => cb(),
       console: { warn() {}, log() {}, error() {} },
       diagPosts: [],
       fetch: async (url, init) => {
@@ -947,6 +975,19 @@ function httpSend(url, method, body, headers = {}) {
   assert.ok(goodPhases.includes("panel-enter"), `面板必须上报 panel-enter，实际 ${goodPhases.join(",")}`);
   assert.ok(goodPhases.includes("panel-ready"), `首次加载完成必须上报 panel-ready，实际 ${goodPhases.join(",")}`);
   const readyEntry = good.diagPosts.find((b) => b !== null && b.phase === "panel-ready");
+  const rectEntry = good.diagPosts.find((b) => b !== null && b.phase === "panel-rect");
+  assert.ok(rectEntry !== undefined, `渲染完必须上报 panel-rect（量几何），实际 ${goodPhases.join(",")}`);
+  assert.equal(typeof rectEntry.wrap.height, "number", `panel-rect 必须带数字 wrap.height，实际 ${JSON.stringify(rectEntry.wrap)}`);
+  assert.equal(rectEntry.wrap.height, 520, `wrap 高度必须量到 520，实际 ${rectEntry.wrap.height}`);
+  assert.equal(rectEntry.parentStyle.display, "flex", `要能读到父级 display，实际 ${JSON.stringify(rectEntry.parentStyle)}`);
+  assert.equal(rectEntry.styleApplied, true, "要能判断注入的样式表在不在");
+
+  // 标题也要量：被压成 0 高时标题也看不见，得能和内容区分开。
+  const titleText = textOf(good.plugin.PanelTitle()).join("");
+  assert.equal(titleText, "模板", `标签标题必须是「模板」，实际 ${titleText}`);
+  const titleRect = good.diagPosts.find((b) => b !== null && b.phase === "title-rect");
+  assert.ok(titleRect !== undefined, `标题渲染完必须上报 title-rect，实际 ${good.diagPosts.map((b) => (b && b.phase) || "?").join(",")}`);
+  assert.equal(typeof titleRect.wrap.height, "number", `title-rect 必须带数字高度，实际 ${JSON.stringify(titleRect.wrap)}`);
   assert.equal(readyEntry.count, 49, `panel-ready 必须带张数 49，实际 ${readyEntry.count}`);
   assert.equal(readyEntry.error, null, "正常加载时 panel-ready.error 必须是 null");
 
