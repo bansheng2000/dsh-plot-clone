@@ -20,16 +20,23 @@ origin_plot_template(template_id="dual_y",
 ## 导出
 
 - 文件：`templates/evidence/dual_y.png`
-- 尺寸：**1200 × 850 px**，33968 bytes（`origin_export(fmt="png", width=1200)`，通道 `save_fig(expGraph)`）
-- **仅作通道连通证明，绝不许当成品示例或宣传图**（带 Origin demo 水印）
+- 尺寸：**1800 × 1276 px**，34988 bytes（`origin_export(fmt="png", width=1800)`，通道 `save_fig(expGraph)`）
+- **2026-11-05 重出**：水印已清（`mask 0 px / bands 0`）；仍为**合成数据**验证图，不是实验示例
+- PDF/OPJU：`.probe/deliver/dual_y.pdf`（17243 bytes）/ `.probe/deliver/dual_y.opju`（本次 9 张共用的工程快照 `.probe/deliver/all-watermark-fix.opju`，334274 bytes 按 id 复制）
+- 校验：`verify_deliverable.py templates/evidence/dual_y.png .probe/deliver/dual_y.pdf .probe/deliver/dual_y.opju --min-width 1800` → **rc=0**，6 项全 PASS
 
 ## 数据
 
 **合成数据**（脚本内联构造），只用于验证通道连通与图元渲染，**不是实验数据**，不得当作示例结果引用。
 
+## 水印复检（2026-11-05）
+
+- 重出前：`watermark_report` 判定 **is_watermark = true**（青色 `demo` 平铺，历史产物）
+- 重出后：`mask 0 px, bands 0, acf 0.00` → **不是水印**；尺寸 **1800 × 1276 px**，与其余证据图一致
+- 没有裁边、没有降分辨率
+
 ## 已知问题
 
-- 导出带 Origin **demo 水印**（青色 `demo` 平铺）：本机 Origin 授权状态所致（`C:/ProgramData/OriginLab` 下有 `REGID.lic`，但导出仍按 demo 模式加水印），**与 MCP 通道无关**。交付前必须先确认导出无水印，否则如实告知用户。
 - **双 Y 的轴标题必须显式给**：左轴读回 `Left`、右轴默认 `Right`，都是列名而不是物理量；`x` 轴标题未设置。要用 `origin_edit_axis(axis="y")` + `axis="y2"` 分别写。
 - 100% 层重叠是正常形态，`origin_verify_graph` 需传 `allow_full_overlap=true` 才不报 warn。
 - Origin 2025b 上 `dualy` 不存在，走的是 `doubley`；换机器可能落到 `righty`，行为一致但模板名不同。

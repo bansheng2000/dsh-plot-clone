@@ -55,7 +55,7 @@
 | `lib/user_templates.js` | 用户模板 = 一个 **Origin 文件**（`.otp .otpu .opj .opju .oth`）原样复制 + `meta.json`（sha256/原始文件名/尺寸/时间）。**不解析 Origin 格式、不量测、不建 spec**；单文件上限 64 MB；`templateDir(root, id)` 是唯一目录穿越闸门 |
 | `make_user_template.mjs` | CLI：`node make_user_template.mjs --from <file> [--name][--category][--note]`，把 Origin 存下来的 `.opju/.otpu` 收进 `~/.dsh/dsh-plot-clone/user-templates/<id>/`（SKILL 第 8 步「保存模板」用它；仓库零新增） |
 | `lib/page.js` | 页面本体：自包含 HTML（内联 CSS+JS，无外部依赖、无构建链），卡片=缩略图/名称/分类/status 标/★收藏/「用这个」，顶部搜索 + status 过滤（后备网页；主入口是侧栏标签）；无图卡片显示「无实拍 / 仅规格，渲染未对接」，用户条目显示「无缩略图 / Origin 文件」 |
-| `lib/client.js` | **DSH 右侧栏的「模板」标签**（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`）；手写 classic script，`window.__ModuleLoader__.load` 挂载，无构建链。双注册：`sidebarRightTabs.register` 出标签、`slots.register` 出内容与标题——**tab 的 `id` / `kind` 与 slot 的 `key` 必须同一个字符串**，宿主按 `kind` 查内容体，不等就是「标签在、面板空白」；顶部筛选按**来源**分 `全部 N` / `预设 N` / `用户 N` / `收藏 N`（用户档空态「还没有你自己的模板，可以上传 Origin 模板或工程」、收藏空态「还没有收藏的模板」），`implemented` / `spec-only` 只作系统模板的状态徽标、不占筛选位；用户卡片标「用户」+ 扩展名、显示原件名/大小/「怎么用」一行，可「重命名」「删除」，「＋ 上传模板」只回执文件名/大小/类型/时间，**不画伪造预览**；「用这个」写 `selection.json` 后原地标「已选」，写盘失败显式报错；宿主无该 slot 时安全跳过、不炸侧栏 |
+| `lib/client.js` | **DSH 右侧栏的「模板」标签**（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`）；手写 classic script，`window.__ModuleLoader__.load` 挂载，无构建链。双注册：`sidebarRightTabs.register` 出标签、`slots.register` 出内容与标题——**tab 的 `id` / `kind` 与 slot 的 `key` 必须同一个字符串**，宿主按 `kind` 查内容体，不等就是「标签在、面板空白」；顶部筛选按**来源**分 `全部 N` / `预设 N` / `用户 N` / `收藏 N`（用户档空态「还没有你自己的模板，可以上传 Origin 模板或工程」、收藏空态「还没有收藏的模板」），**分类子筛选只挂在「预设」下**（通用 / 光谱 / 电化学 / 医学 / 热分析 / 研究信号，各带该分类的系统模板数，取自 `category` 首段；切到「全部」「收藏」「用户」时清空，绝不残留成隐藏过滤），`implemented` / `spec-only` 只作系统模板的状态徽标、不占筛选位；用户卡片标「用户」+ 扩展名、显示原件名/大小/「怎么用」一行，可「重命名」「删除」，「＋ 上传模板」只回执文件名/大小/类型/时间，**不画伪造预览**；「用这个」写 `selection.json` 后原地标「已选」，写盘失败显式报错；宿主无该 slot 时安全跳过、不炸侧栏 |
 | `test/preview.mjs` | 开发预览（不进 npm 包）：`node test/preview.mjs` 用与插件同一个 handler 起临时端口并打印 `templates_dir:` / `selection:` / `page:`，`PORT=` 可固定——插件还没装进 profile 时用它验路由和页面 |
 
 取色用法（需要精确 hex 时才跑）：
@@ -160,9 +160,9 @@ python verify_deliverable.py --selftest
 
 ## 模板证据图（`templates/evidence/`）
 
-实跑第 1 批模板留下的产物：9 份 `<id>.md`（真实调用参数 + 对象层反读值 + 导出字节数）和 9 张 `<id>.png`（1200×850），外加 `probes/` 下 5 张探针失败现场图。
+实跑留下的产物：**27 份 `<id>.md`**（真实调用参数 + 对象层反读值 + 导出字节数）和 **27 张 `<id>.png`（1800×1276）**；`failed/` 下 2 张是 spec-only 的失败尝试现场图（`bland_altman`、`horizontal_bar`），`probes/` 下 5 张是旧探针图。
 
-**这 8 张 PNG 只作「通道连通证明」，绝不许当成品示例或宣传图**：本机 Origin 当前是 demo 模式，图上有满幅青色 `demo` 水印。每份 md 都写了水印状态；每次导出都要记一句，让用户随时能看到当前环境可不可交付。授权问题归用户处理，本 skill 不碰、不去水印、不换证书。
+**水印已清（2026-11-05 重出）**：最早那 9 张（`bar` `dual_y` `forest` `heatmap` `line_error` `multi_panel` `scatter` `signal_stack` `xrd`）曾带满幅青色 `demo` 水印，本轮逐张重出后 `watermark_report` 全部 `mask 0 px / bands 0`，与其余 18 张同规格（1800×1276、`verify_deliverable --min-width 1800` → `STATUS PASS (6/6)`）。每份 md 都有 `## 水印复检` 一节记重出前后的判定值；图仍是**合成数据**验证图，不是实验示例。授权问题归用户处理，本 skill 不碰、不去水印、不换证书。
 
 ## 插件壳（让 MCP 连接器跟着插件一起装好）
 

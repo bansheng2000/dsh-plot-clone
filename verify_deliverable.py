@@ -291,6 +291,29 @@ def selftest():
         im.save(p)
         return p
 
+    def hard_watermarked_png(name, width=1800, height=1200):
+        """硬案例：水印叠在同色浅青格子上 + 行间距被打乱（heatmap 当年漏判的形态）。
+
+        证据图 2026-11-05 已全部清成无水印，所以这里自造这个形态，不再依赖仓库里的历史图。
+        """
+        from PIL import ImageDraw
+        im = Image.new("RGB", (width, height), "white")
+        dr = ImageDraw.Draw(im)
+        cell = 40
+        for gy in range(0, height, cell):
+            for gx in range(0, width, cell):
+                if (gx // cell + gy // cell) % 2 == 0:
+                    dr.rectangle([gx, gy, gx + cell - 1, gy + cell - 1], fill=(220, 250, 250))
+        y, k = 4, 0
+        while y < height - 10:
+            for x in range(0, width, 150):
+                dr.text((x + (k % 3) * 6, y), "demo", fill=(0, 255, 255))
+            k += 1
+            y += 72
+        p = os.path.join(d, name)
+        im.save(p)
+        return p
+
     try:
         # 1) 全过：3 个文件 + basename + width + watermark = 6 项
         ok_png, ok_pdf, ok_opju = png("fig.png"), doc("fig.pdf"), doc("fig.opju")
@@ -339,28 +362,32 @@ def selftest():
         assert "检测到 Origin demo 水印，导出图不可用" in out, out
         print("overlay    -> watermark   | %s" % rep["detail"])
 
-        # 8) 真水印图（仓库里的证据图）也必须被抓到。
-        #    其中 heatmap.png 是回归用例：水印叠在同色浅青格子上、行带间距被打乱
-        #    （cv 0.72），第一版按 cv 判会漏判，改用自相关才抓住。
+        # 8) 硬案例：水印叠在同色浅青格子上、行间距被打乱（当年 heatmap 漏判的形态）。
+        hard = hard_watermarked_png("hard.png")
+        rep = watermark_report(hard)
+        assert rep["is_watermark"] is True, rep
+        rc, out, _ = run(hard, doc("hard.pdf"), doc("hard.opju"), "--min-width", "1000")
+        assert rc == RC_FAIL and "检测到 Origin demo 水印" in out, (rc, out)
+        print("hard-cyan  -> watermark   | %s" % rep["detail"])
+
+        # 9) 仓库证据图必须是干净图：谁再塞回带水印的证据图，这条就红。
         root = os.path.dirname(os.path.abspath(__file__))
-        real_cases = ["bar", "heatmap", "xrd"]
-        hit_real = 0
-        for name in real_cases:
+        clean = 0
+        for name in ("bar", "heatmap", "xrd"):
             real = os.path.join(root, "templates", "evidence", name + ".png")
             if not os.path.isfile(real):
-                print("real %-7s -> SKIPPED (templates/evidence/%s.png 不存在)" % (name, name))
+                print("clean %-7s -> SKIPPED (templates/evidence/%s.png 不存在)" % (name, name))
                 continue
             rep = watermark_report(real)
-            assert rep["is_watermark"] is True, (name, rep)
-            rc, out, _ = run(real, doc(name + ".pdf"), doc(name + ".opju"), "--min-width", "1000")
-            assert rc == RC_FAIL and "检测到 Origin demo 水印" in out, (name, rc, out)
-            hit_real += 1
-            print("real %-7s -> watermark   | %s" % (name, rep["detail"]))
-        assert hit_real >= 2, "真水印回归用例至少要命中 2 张，实际 %d" % hit_real
+            assert rep["is_watermark"] is False, ("证据图被水印污染了", name, rep)
+            clean += 1
+            print("clean %-7s -> not watermark | %s" % (name, rep["detail"]))
+        assert clean >= 2, "证据图干净回归用例至少要命中 2 张，实际 %d" % clean
 
         print("selftest ok: pass rc=0 (6/6, width 1800 px) | missing rc=4 | "
               "basename differ rc=4 | width 1200 rc=4 | usage rc=2 | "
-              "cyan-data no-false-positive | overlay watermark rc=4 | real watermark rc=4")
+              "cyan-data no-false-positive | overlay watermark rc=4 | hard watermark rc=4 | "
+              "evidence 图无水印")
         return 0
     finally:
         shutil.rmtree(d, ignore_errors=True)

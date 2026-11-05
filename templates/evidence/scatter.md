@@ -20,14 +20,21 @@ origin_plot(worksheet=[Book3]Sheet1, plot_type="scatter",
 ## 导出
 
 - 文件：`templates/evidence/scatter.png`
-- 尺寸：**1200 × 850 px**，24948 bytes（`origin_export(fmt="png", width=1200)`，通道 `save_fig(expGraph)`）
-- **仅作通道连通证明，绝不许当成品示例或宣传图**（带 Origin demo 水印）
+- 尺寸：**1800 × 1276 px**，25180 bytes（`origin_export(fmt="png", width=1800)`，通道 `save_fig(expGraph)`）
+- **2026-11-05 重出**：水印已清（`mask 0 px / bands 0`）；仍为**合成数据**验证图，不是实验示例
+- PDF/OPJU：`.probe/deliver/scatter.pdf`（22545 bytes）/ `.probe/deliver/scatter.opju`（本次 9 张共用的工程快照 `.probe/deliver/all-watermark-fix.opju`，334274 bytes 按 id 复制）
+- 校验：`verify_deliverable.py templates/evidence/scatter.png .probe/deliver/scatter.pdf .probe/deliver/scatter.opju --min-width 1800` → **rc=0**，6 项全 PASS
 
 ## 数据
 
 **合成数据**（脚本内联构造），只用于验证通道连通与图元渲染，**不是实验数据**，不得当作示例结果引用。
 
+## 水印复检（2026-11-05）
+
+- 重出前：`watermark_report` 判定 **is_watermark = true**（青色 `demo` 平铺，历史产物）
+- 重出后：`mask 0 px, bands 0, acf 0.00` → **不是水印**；尺寸 **1800 × 1276 px**，与其余证据图一致
+- 没有裁边、没有降分辨率
+
 ## 已知问题
 
-- 导出带 Origin **demo 水印**（青色 `demo` 平铺）：本机 Origin 授权状态所致（`C:/ProgramData/OriginLab` 下有 `REGID.lic`，但导出仍按 demo 模式加水印），**与 MCP 通道无关**。交付前必须先确认导出无水印，否则如实告知用户。
 - 无其他问题（本批唯一 10/10 全通过的）。

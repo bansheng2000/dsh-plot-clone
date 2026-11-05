@@ -813,6 +813,54 @@ function httpSend(url, method, body, headers = {}) {
     `收藏为空必须有空态文案，实际：${fFav.text.slice(0, 140)}`,
   );
 
+  // 分类层只挂在「预设」下（用户原话：预设里再加一层分类，其他地方不用加）。
+  const clickChipTree = async (mounted, label) => {
+    const btn = allNodes(await mounted.render()).find(
+      (n) => n.type === "button" && textOf(n).join("").trim().startsWith(label),
+    );
+    assert.ok(btn !== undefined, `找不到筛选按钮「${label}」`);
+    btn.props.onClick();
+    return await mounted.render();
+  };
+  const catChipsOf = (tree) =>
+    allNodes(tree).filter((n) => n.type === "button" && n.props && n.props["data-cat"] !== undefined);
+
+  const preTree = await clickChipTree(good, "预设");
+  const preCats = catChipsOf(preTree);
+  assert.equal(preCats.length, 3, `「预设」下必须出现「全部分类 + 通用 + 光谱」三个 chip，实际 ${preCats.length}`);
+  const preNums = preCats.map((b) => Number((textOf(b).join("").trim().match(/(\d+)$/) ?? [])[1]));
+  assert.equal(preNums[0], 49, `全部分类计数必须等于系统模板总数 49，实际 ${preNums[0]}`);
+  assert.equal(preNums.slice(1).reduce((a, b) => a + b, 0), preNums[0], `各分类合计必须等于系统模板数，实际 ${preNums.slice(1).join("+")} vs ${preNums[0]}`);
+
+  const specBtn = catChipsOf(preTree).find((b) => b.props["data-cat"] === "spectroscopy");
+  assert.ok(specBtn !== undefined, "找不到「光谱」分类 chip");
+  specBtn.props.onClick();
+  const specTree = await good.render();
+  const specCards = nodesWith(specTree, "data-template-id");
+  assert.equal(specCards.length, 24, `「光谱」应只剩 24 张，实际 ${specCards.length}`);
+  assert.equal(specCards.every((id) => Number(String(id).replace("tpl-", "")) % 2 === 1), true, "「光谱」只剩光谱类卡片");
+  assert.equal(nodesWith(specTree, "data-kind").every((k) => k === "system"), true, "分类层下只应有系统模板");
+
+  // 切到「全部」：分类层必须消失、卡片回到 49（不许残留成隐藏过滤）。
+  const backAll = await clickChipTree(good, "全部");
+  assert.equal(catChipsOf(backAll).length, 0, "「全部」不许出现分类层");
+  assert.equal(nodesWith(backAll, "data-template-id").length, 49, `切回「全部」必须 49 张，实际 ${nodesWith(backAll, "data-template-id").length}`);
+  assert.equal(textOf(backAll).join(" ").includes("没有匹配的模板"), false, "切回「全部」不许因为残留分类把卡片过滤光");
+
+  // 预设 → 光谱 → 收藏：分类必须被清掉，不许带着隐藏过滤。
+  const preAgain = await clickChipTree(good, "预设");
+  const specAgain = catChipsOf(preAgain).find((b) => b.props["data-cat"] === "spectroscopy");
+  specAgain.props.onClick();
+  const favAfterCat = await clickChipTree(good, "收藏");
+  assert.equal(catChipsOf(favAfterCat).length, 0, "「收藏」不许出现分类层");
+  assert.equal(nodesWith(favAfterCat, "data-template-id").length, 0, "收藏为空时 0 张（分类不许残留成过滤）");
+  const preFresh = await clickChipTree(good, "预设");
+  assert.equal(
+    nodesWith(preFresh, "data-template-id").length,
+    49,
+    `从「收藏」切回「预设」必须回到全部 49 张（分类不许残留），实际 ${nodesWith(preFresh, "data-template-id").length}`,
+  );
+
   // 收藏是活的：点一个 ★ 之后「收藏」计数与筛选结果都要立刻变。
   await clickChip(good, "全部");
   const star = allNodes(await good.render()).find(
@@ -890,9 +938,9 @@ function httpSend(url, method, body, headers = {}) {
   assert.equal(body.Component, good.plugin.TemplatesPanel, "内容体必须就是能渲染出 49 条的 TemplatesPanel");
 
   ok(
-    "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选四档 + 用户卡片无伪造预览",
+    "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选四档 + 「预设」下分类层 + 用户卡片无伪造预览",
     `cards=${cards.length} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fUser.cards}/${fFav.cards} 用户空态=${fUser.text.includes("还没有你自己的模板")} 用户卡片=${mixUser.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind}`,
   );
 }
 
-console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档）`);
+console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档 / 预设分类层）`);

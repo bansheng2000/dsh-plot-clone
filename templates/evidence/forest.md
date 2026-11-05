@@ -23,15 +23,22 @@ origin_plot_template(template_id="forest",
 ## 导出
 
 - 文件：`templates/evidence/forest.png`
-- 尺寸：**1200 × 850 px**，23247 bytes（`origin_export(fmt="png", width=1200)`，通道 `save_fig(expGraph)`）
-- **仅作通道连通证明，绝不许当成品示例或宣传图**（带 Origin demo 水印）
+- 尺寸：**1800 × 1276 px**，24245 bytes（`origin_export(fmt="png", width=1800)`，通道 `save_fig(expGraph)`）
+- **2026-11-05 重出**：水印已清（`mask 0 px / bands 0`）；仍为**合成数据**验证图，不是实验示例
+- PDF/OPJU：`.probe/deliver/forest.pdf`（24025 bytes）/ `.probe/deliver/forest.opju`（本次 9 张共用的工程快照 `.probe/deliver/all-watermark-fix.opju`，334274 bytes 按 id 复制）
+- 校验：`verify_deliverable.py templates/evidence/forest.png .probe/deliver/forest.pdf .probe/deliver/forest.opju --min-width 1800` → **rc=0**，6 项全 PASS
 
 ## 数据
 
 **合成数据**（脚本内联构造），只用于验证通道连通与图元渲染，**不是实验数据**，不得当作示例结果引用。
 
+## 水印复检（2026-11-05）
+
+- 重出前：`watermark_report` 判定 **is_watermark = true**（青色 `demo` 平铺，历史产物）
+- 重出后：`mask 0 px, bands 0, acf 0.00` → **不是水印**；尺寸 **1800 × 1276 px**，与其余证据图一致
+- 没有裁边、没有降分辨率
+
 ## 已知问题
 
-- 导出带 Origin **demo 水印**（青色 `demo` 平铺）：本机 Origin 授权状态所致（`C:/ProgramData/OriginLab` 下有 `REGID.lic`，但导出仍按 demo 模式加水印），**与 MCP 通道无关**。交付前必须先确认导出无水印，否则如实告知用户。
 - 效应量是**比值型**（1.24 这类），零参考线画在 `x=0`，但比值型图的参考线应在 `x=1`：本次实测 `zero=0.0`，需要时用 `origin_add_line(at=1, orientation="vertical")` 另画一条并说明。
 - 5 个标签是逐行 `origin_annotate` 放的，标签多了会挤；超过约 15 项要改用图例或缩字号。
