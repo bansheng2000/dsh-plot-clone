@@ -226,7 +226,7 @@ python verify_deliverable.py --selftest
 | 版本 | 位置 | 管什么 | 变更时机 |
 |---|---|---|---|
 | 技能版本 `v2.7` | `SKILL.md` 顶部注记 + 本节下方「版本」段 | 复刻方法论本身：步骤、判据、能力表、脚本行为、模板库 | 改 SKILL/脚本/模板时**记入变更记录**，但版本号只在发版时改 |
-| 插件版本 `0.1.0` | `package.json` 的 `version` | 插件壳：检测、注册 connector、bootstrap | 改 `lib/index.js` 时**不动号**，发版时改 |
+| 插件版本 `0.1.1` | `package.json` 的 `version` | 插件壳：检测、注册 connector、bootstrap | 改 `lib/index.js` 时**不动号**，发版时改 |
 
 两者**都不许擅自 bump**：改代码不等于发版，发版前会单独确认。
 

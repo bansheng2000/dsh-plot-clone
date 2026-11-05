@@ -10,6 +10,7 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 > v2.1：加 `figure_metrics.py`（参考图 ↔ 成品图量化并排对照，收敛循环靠它而不是肉眼）；新增硬坑 11/12（COM 异常可 `origin_release` 救回但工程会丢、字号/点径的正确通道）。
 > v2.2：借 editaplot 的参考图契约——新增第 3 步「样式台账」（每字段三态 applied / retained_default / rejected + 来源优先级 + 允许清单），收尾加「缺读回=失败」；参考图只给文字**角色**，不给文字内容。
 > v2.7（2026-11-03）：科研投稿规格定档（第 2 步 + `pub_target`/`pub_limits`/`stats` + 自检 17 条 + `--pub-check` 可辨三查）；**同时把范围收回到只做 Origin 复刻**——矢量（Illustrator/SVG）与 3D（Blender）两条通道实测达不到可用水平，已移除，判型选通道那一步不再存在。
+> 2026-11-05（插件 0.1.1）：审计七项落地——删除用户模板同时摘收藏（`--check` 覆盖 `selection.json`）、禁止 `doc -o` 打开 `.oth`、三个读数坑进硬坑清单（`list_pages.graphs` 恒空 / `origin_status.origin_exe` 报错版本 / GDI `#32770` 卡 COM 60s）、`templates_index.py --match` 按 `data_contract` 找候选、用户模板缩略图改由 agent 侧 `origin_export(width=600)` 补、`index.data_contract` 必须逐字镜像模板自己的 `schema.json`、第 4 步补「点名模板 id」三步流程；**编号规范收敛为「第 N 步」连续整数一套**，第 4 步下的子标题去掉 `1. 2. 3.` 层级号，全文不再有 `5.1` 这类编号。
 
 > v2.6（2026-11-01）：量测层重写——新增 `pixel_core.py`（阈值 / 取色 / 框检测 / 装饰带 / 刻度 / 点径 / 文字行只此一份）与 `test_synth.py`（29 条合成真值断言，改量测代码必须先跑它）；修 14 处实测缺陷（框坐标 −2px、渐变带报 3px、4x 刻度报 25px、点径上限砍掉大游程、细线色被降采样丢弃、半宽与多面板量不到框、两取色器口径不一、反斜杠路径打整条）；判据按实测精度重定（frame ≤1px / band <5% / dot ≤10% 或 ≤1px / tick ≤2px），做不到的三项（多段非单调渐变、>40px 大符号、无闭合框组图）明写进文档。
 
@@ -199,7 +200,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 
 模板是**加速器，不是必经之路**。这一步只花几十秒：查得到就用，查不到就走自由构图，两条都是正常路径。
 
-### 1. 用户选过模板，就先按它做（手动选择优先于自动匹配）
+### 先看用户选了什么（手动选择优先于自动匹配）
 
 插件在 DSH **右侧栏**加了一个「Origin 模板」标签（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`，只改显示名、标识符固定）：点开就是模板选择器，搜索 / 按来源过滤（`全部 / 预设 / 用户 / 收藏`）/ ★ 收藏 / 「用这个」，选中「预设」时下面再多一层分类子筛选（通用 / 光谱 / 电化学 / 医学 / 热分析 / 研究信号，各带该分类系统模板数），用户档里还能「＋ 上传模板」、重命名、删除。同一个页面也能直接开：`http://127.0.0.1:<DSH 端口>/plot-clone/`（无外部依赖，老版本宿主没这个标签时用它）。用户点「用这个」写的是：
 
@@ -213,9 +214,9 @@ python test_synth.py                            # 改过量测代码就跑这个
 python templates_index.py --selected
 ```
 
-- `SELECTED none` → 用户没选，走下面第 2 小步的自动匹配。
-- 有 selected 且 `[implemented]` → **直接按这条模板的 `renderer.channel` + 两份契约走**，跳过第 2/3 小步。用户明确选的图型不许换成你觉得更好的。
-- 有 selected 且 `[spec-only]` → 原话说明「这个图型我只有规格、渲染未对接」，给自由构图 / 近似 implemented 两个选项（同第 5 小步）。这是用户自己选的，如实告知**不算静默降级**。
+- `SELECTED none` → 用户没选，走自动匹配（见下文「再验索引」到「未命中」）。
+- 有 selected 且 `[implemented]` → **直接按这条模板的 `renderer.channel` + 两份契约走**，跳过「再验索引」「列三组模板」两段。用户明确选的图型不许换成你觉得更好的。
+- 有 selected 且 `[spec-only]` → 原话说明「这个图型我只有规格、渲染未对接」，给自由构图 / 近似 implemented 两个选项（同下文「命中 spec-only」）。这是用户自己选的，如实告知**不算静默降级**。
 - 有 selected 但**是用户模板**（列表项 `kind:"user"`、`status:"external"`）→ `selection.json` 里带 `origin_file`（绝对路径）和 `usage`。**不要解析这个 Origin 文件、不要量测、不要建 spec**，走已有通道把样式取出来：
   1. 先 `origin_save_project(临时路径)` 存当前工程（切工程前必须存，见硬坑 9）；
   2. `origin_labtalk(script="doc -o <origin_file>;")` 打开用户的模板/工程（`.oth` 禁止，见硬坑 14）；
@@ -235,17 +236,17 @@ python templates_index.py --selected
 
 **选中只是偏好，不是闸门**：它只改优先顺序，不改任何判据。
 
-### 2. 先验索引，再谈模板
+### 再验索引，再谈模板
 
 ```
 python templates_index.py --check
 ```
 
-- `rc=0`（输出 `STATUS PASS (N templates)`）→ 索引可用，进第 3 小步。
+- `rc=0`（输出 `STATUS PASS (N templates)`）→ 索引可用，进「列三组模板」。
 - `rc=2`（`ERROR index not found`）→ **模板库不可用**。原话告诉用户「本次没有模板库，走自由构图」，直接跳到第 5 步。**不许装作有模板**，也不许凭记忆报一个模板名。
 - `rc=1`（有 `FAIL` 行）→ 索引坏了。把 FAIL 原文贴给用户，同样走自由构图。
 
-### 3. 列三组模板，说清差别
+### 列三组模板，说清差别
 
 ```
 python templates_index.py --list
@@ -273,14 +274,14 @@ python templates_index.py --match --roles category,series --ncols 2
 
 `--roles` 用列画像（`origin_plot_plan`）得出的角色名，`--ncols` 是数据列数。输出只列 `implemented`，按「可用 / 缺项」排序，缺列或缺角色会直接写 `缺：…`（例如 `缺角色 facet`、`缺 1 列（要 ≥3）`）——照着挑，缺项就别硬套。不传 `--roles` 也能列（按列数排序），适合先看一眼有什么。
 
-### 4. 命中 `implemented` → 按模板的通道走
+### 命中 `implemented` → 按模板的通道走
 
 用户直接点名模板（「用 xps 模板」「用 forest 那张」）时，三步走，别凭名字猜：
 
 ```
-python templates_index.py --list --group system          # 1. 找 id（也可 grep -i xps 过滤）
-# 2. 读该 id 的 renderer.channel（templates/index.json）与 schema.json 的 data_contract
-# 3. 按通道出图（见下表），再 origin_verify_graph 复核
+python templates_index.py --list --group system   # 第 1 步：找 id（也可 grep -i xps 过滤）
+# 第 2 步：读该 id 的 renderer.channel（templates/index.json）与 schema.json 的 data_contract
+# 第 3 步：按通道出图（见下表），再 origin_verify_graph 复核
 ```
 
 | `renderer.channel` | 怎么出图 |
@@ -301,7 +302,7 @@ origin_labtalk(script="plotm im:=[M001]1!1 plot:=105 ogl:=[<new>]!;")           
 
 同时读同目录的 `data_contract.md`（要什么列）和 `visual_contract.md`（视觉判据 + 实测补充），把它们当第 1 步规格卡的**默认值**；用户明说的优先于模板默认。
 
-### 5. 命中 `spec-only` → 必须原话说明，绝不静默降级
+### 命中 `spec-only` → 必须原话说明，绝不静默降级
 
 原话告诉用户：
 
@@ -314,7 +315,7 @@ origin_labtalk(script="plotm im:=[M001]1!1 plot:=105 ogl:=[<new>]!;")           
 
 **不许静默降级成自由构图**——用户有权知道他要的图型我们到底有没有。
 
-### 6. 未命中 → 自由构图
+### 未命中 → 自由构图
 
 索引里没有这个图型（或用户要的是参考图那种非常规构图）→ 直接进第 5 步。这是**正常路径**，不是失败。
 
