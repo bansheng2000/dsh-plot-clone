@@ -14,7 +14,7 @@
 | 1 | 写规格卡 | 十六字段卡：canvas / geometry / family / panels / x,y / y2 / series / fill / deco / yerr / legend / refs / fonts / pub_target / pub_limits / stats；`refs` 记参考图 sha256 + 尺寸 + 字节数 |
 | 2 | 科研投稿规格定档 | 成品尺寸 mm、最小字号 / 线宽、位图 dpi、导出格式、配色可辨、统计标注；缺项写 `unknown` |
 | 3 | 样式台账 | 每个字段三态之一：`applied` / `retained_default` / `rejected`；来源优先级= 用户明说 > 参考图允许清单 > 默认 |
-| 4 | **选模板** | `templates_index.py --check` 验索引 → `--list` 列三组（收藏 / 系统按 category / 用户）→ 命中 `implemented` 走 `renderer.channel`；命中 `spec-only` 必须原话报 gap 并给两选项；未命中走自由构图 |
+| 4 | **选模板** | `templates_index.py --check` 验索引（六条断言，含契约镜像）→ 只有数据时先 `--match --roles … --ncols N` 找候选（只推 implemented，缺列缺角色写明）→ `--list` 列三组（收藏 / 系统按 category / 用户）→ 命中 `implemented` 走 `renderer.channel`；命中 `spec-only` 必须原话报 gap 并给两选项；未命中走自由构图 |
 | 5 | 图元 → 通道 | 查映射表：点、线、柱、渐变、白遮罩、装饰带、刻线、文字、图例、面板、对数轴、页面几何 |
 | 6 | 能力表对照 | 能 / 只能逼近 / 做不到三条线分开，别承诺做不到的 |
 | 7 | 收敛循环（最多 3 轮） | `origin_view_graph` 看自己的图 → 只列差项 → 一次批量改 → 再看 |
@@ -37,7 +37,7 @@
 - **交付物固定三种格式**：PNG（≥1800 宽）+ PDF + OPJU（可在 Origin 里继续编辑）；缺一件不算交付，交付里同时写明数据文件路径与列名，逐列可追溯。交付前先跑 `verify_deliverable.py` 做文件层硬检查（存在/非空/同 basename/宽度），再用 `origin_verify_graph` 查对象层。
 - **交付前 17 条自检**：颜色必须等于卡上 hex（像素验过，不是「差不多」）、填充形态与下边界、装饰带高度 = 量测值、页面尺寸与图层几何、verify 无 fail、数据可追溯、三格式齐等。
 - **上游委派接口**：被领域 SOP（如 `dsh-xps-peakfit`）委派时只接风格对齐这一段——按上游系列清单建 series、不改数值、不润色标注文本、上游禁止项从严执行；回给上游规格卡 + 差量表 + 交付路径。**只有版面约束、没有参考图时不套复刻流程**，转 `origin-plotting` 常规建图。
-- **模板只是加速器**：49 个模板（27 `implemented` / 22 `spec-only`，2026-11-05 批量实跑后从 9/40 更新）上面有三道闸——`--check` 验证据、`--selected` 读用户选的、命中后按 `renderer.channel` 走。用户在页面上选过的模板**优先**，但列角色对不上就改自动匹配并给「推荐 id + 缩略图」，不硬套、不报错；`spec-only` 必须原话报 gap，绝不静默降级成自由构图。
+- **模板只是加速器**：49 个模板（27 `implemented` / 22 `spec-only`，2026-11-05 批量实跑后从 9/40 更新）上面有四道闸——`--check` 验证据 + **契约镜像（`index.data_contract` 必须逐字等于模板自己的 `schema.json`，以 schema 为唯一真源；2026-11-05 补了 `min_rows`/`supported_extensions`）**、`--match` 按契约找候选、`--selected` 读用户选的、命中后按 `renderer.channel` 走。用户在页面上选过的模板**优先**，但列角色对不上就改自动匹配并给「推荐 id + 缩略图」，不硬套、不报错；`spec-only` 必须原话报 gap，绝不静默降级成自由构图。
 
 ## 文件
 
@@ -50,7 +50,7 @@
 | `figure_metrics.py` | 参考图 ↔ 成品图**量化并排对照**：外框 %、面板数（多面板逐面板输出）、装饰带高/绘图高（纯色/渐变）、白缝 %、刻度长、文字行与字高（label/title）、点径、主色——收敛循环每轮回跑它；`--json`（缺测项落 `null` + `<字段>_reason`，`status` 三态 ok/partial/none 对应 rc 0/3/4）、`--band-hex`/`--dot-hex`/`--dark`、`--selftest`；投稿级可辨性 `--pub-check`（灰度 ΔL*≥10 / 色盲 ΔE00≥10 / 白底对比度≥1.5:1，逐项给实测值与阈值；`--series-color "#hex,..."` 可显式指定，否则从主色提） |
 | `verify_deliverable.py` | **交付三件套文件层检查**（不读 Origin 对象属性，那是 `origin_verify_graph` 的活）：三个文件存在且非空、三者同 basename、PNG 宽 ≥ `--min-width`（默认 1800）；逐项 PASS/FAIL，rc 0 全过 / 4 有 FAIL / 2 用法错误；`--selftest` 用临时文件造「缺文件 / basename 不一致 / 宽度不够 / 全过」四种场景断言 |
 | `test_synth.py` | **合成真值自检**：画出几何已知的图（框位置、20px 带、渐变带、1x/2x/4x 刻度、d=10/20 点径、已知字高、2px 细线、半宽面板、双面板），对三个脚本的读数逐项断言（29 条，公差 ±1px/±2%）。改量测代码先跑它 |
-| `templates_index.py` | **模板索引的机器闸门**：`--check` 五条断言（implemented 必须有实测证据文件且非空 / spec-only 必须有 `gap` / system 模板 path 必须在 `templates/system/` 下 / 收藏不许悬空 / `renderer.channel` 的工具名与变体必须在白名单），rc 0 全过 / 1 有 FAIL / 2 索引缺失；`--list` 按「收藏置顶 → 系统按图型分组 → 用户」列三类；`--selected` 读用户在页面上选的那个模板（四分支：none / 过期选择 / implemented 给通道 / spec-only 报 gap）；`--selftest` 八条变异 + 三条 `--selected` 分支全部必须真红。**没证据的 implemented 过不了这道闸** |
+| `templates_index.py` | **模板索引的机器闸门**：`--check` 六条断言（implemented 必须有实测证据文件且非空 / spec-only 必须有 `gap` / system 模板 path 必须在 `templates/system/` 下 / 收藏不许悬空（`favorites.json` 与 `selection.json` 两处都查）/ `renderer.channel` 的工具名与变体必须在白名单 / **`index.data_contract` 必须逐字镜像模板自己的 `schema.json`**，以 `schema.json` 为唯一真源），rc 0 全过 / 1 有 FAIL / 2 索引缺失；`--list` 按「收藏置顶 → 系统按图型分组 → 用户」列三类；`--match --roles a,b --ncols N` 按 `data_contract` 打分找候选（只列 `implemented`，缺列缺角色写成 `缺：…`，不硬套）；`--selected` 读用户在页面上选的那个模板（四分支：none / 过期选择 / implemented 给通道 / spec-only 报 gap）；`--selftest` 11 条变异 + 5 条 `--match` + 3 条 `--selected` 分支全部必须真红。**没证据的 implemented、写歪的契约都过不了这道闸** |
 | `lib/templates.js` | **模板选择页的服务端**：`/plot-clone` 下 8 条路由（prefix 注册在 `webServer` seam，不新开端口）；**前缀必须独立**——早期把整段挂在 `/plugins/dsh-plot-clone` 下，把宿主下发客户端 bundle 的路由一起吃掉（`/plugins/<id>/client.js` 404），标签就永远显示「这类内容还没有可用的查看方式」；现在遇到非自有前缀一律 `return undefined` 让位；`/plot-clone/diag` 是客户端诊断（GET 读最近 50 条、POST 追加、坏 JSON 400），回答「bundle 到底有没有执行 apply」；列表 = 49 条系统模板 + 用户模板，缩略图**只认 `templates/evidence/<id>.png`（系统）或 `user-templates/<id>/thumb.png`（用户）**，没有就给 `thumb: null` 且 404 `no-thumbnail`（不许拿 implemented 的图冒充）；选中与收藏写 `~/.dsh/dsh-plot-clone/selection.json`，选中用户模板时把 `origin_file` 绝对路径与 `usage` 一起写盘 |
 | `lib/user_templates.js` | 用户模板 = 一个 **Origin 文件**（`.otp .otpu .opj .opju .oth`）原样复制 + `meta.json`（sha256/原始文件名/尺寸/时间）。**不解析 Origin 格式、不量测、不建 spec**；单文件上限 64 MB；`templateDir(root, id)` 是唯一目录穿越闸门 |
 | `make_user_template.mjs` | CLI：`node make_user_template.mjs --from <file> [--name][--category][--note]`，把 Origin 存下来的 `.opju/.otpu` 收进 `~/.dsh/dsh-plot-clone/user-templates/<id>/`（SKILL 第 8 步「保存模板」用它；仓库零新增） |
@@ -199,7 +199,7 @@ python verify_deliverable.py --selftest
 | `GET /selection` | `{selected, favorites, updatedAt, origin_file, usage}` |
 | `POST /selection` | body `{selected: "<id>"\|null, favorites: ["<id>"]}`；非法 id 400 并逐条报错，收藏可增可删 |
 
-选中落 `~/.dsh/dsh-plot-clone/selection.json`（与 `mcp-state.json` 同目录，pnpm 重装不清）。它只是**偏好**，不改自动匹配判据：第 4 步先用 `python templates_index.py --selected` 读它，命中就按用户选的做；数据对不上就改自动匹配并给「推荐 id + 缩略图」，不报错也不硬套。选中**用户模板**时文件里还带 `origin_file`（绝对路径）和 `usage`——agent 拿这两样去 Origin 里打开、读图层、存样式快照再套用，插件不解析 Origin 格式。
+选中落 `~/.dsh/dsh-plot-clone/selection.json`（与 `mcp-state.json` 同目录，pnpm 重装不清）。它只是**偏好**，不改自动匹配判据：第 4 步先用 `python templates_index.py --selected` 读它，命中就按用户选的做；数据对不上就改自动匹配并给「推荐 id + 缩略图」，不报错也不硬套。选中**用户模板**时文件里还带 `origin_file`（绝对路径）和 `usage`——agent 拿这两样去 Origin 里打开、读图层、存样式快照再套用，插件不解析 Origin 格式。缺缩略图时由 **agent 侧**补（插件进程没有 Origin 通道）：`.opj`/`.opju` → `origin_export(fmt="png", width=600, file_path="<id>/thumb.png")`，落盘即生效（`GET /plot-clone/thumb/<id>` 命中就 200，不用重建索引）；`.otp`/`.otpu` 打开是 0 曲线空框，**不生成**缩略图。
 
 用户模板存 `~/.dsh/dsh-plot-clone/user-templates/<id>/`：`source.otp|figure.opju`（原件，字节不变）+ `meta.json`（sha256/原始文件名/尺寸/时间）+ 可选 `thumb.png`（用户自己给才显示）。仓库里**零新增**。
 
