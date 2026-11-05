@@ -833,26 +833,53 @@ function httpSend(url, method, body, headers = {}) {
   const src = fsMod.readFileSync(join(rootDir, "lib", "client.js"), "utf8");
 
   /** 迷你 React：够跑这个组件的 hooks + jsx，不装 react-dom。 */
-  /** 假 DOM：只为让 panel-rect 量到确定的数字（真宿主里这些来自 getBoundingClientRect）。 */
+  /** 假 DOM：让布局取证量到确定的数字（真宿主里这些都来自 DOM/计算样式）。 */
 function layoutDocument() {
+  let docRef = null;
   const rect = (x, y, width, height) => () => ({ x, y, width, height });
-  const parent = {
-    getBoundingClientRect: rect(0, 0, 420, 520),
+  const el = (tagName, className, r, parent = null) => ({
+    tagName,
+    className,
+    getBoundingClientRect: r,
+    parentElement: parent,
     style: {},
-  };
-  const wrap = { getBoundingClientRect: rect(8, 40, 404, 520), parentElement: parent };
-  const card = { getBoundingClientRect: rect(16, 96, 126, 160), parentElement: wrap };
-  const node = { head: { appendChild: () => {} }, createElement: () => ({}) };
-  return {
-    ...node,
+    children: [],
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    getRootNode() {
+      return docRef;
+    },
+    innerHTML: ""
+  });
+  const html = "<div class=\"pc-head\">模板 · 共 49 个</div>" + "<div class=\"pc-list\">".repeat(1);
+  const cards = Array.from({ length: 49 }, () => ({}));
+  const list = el("div", "pc-list", rect(8, 96, 404, 416));
+  list.children = cards;
+  list.querySelectorAll = (sel) => (sel === "[data-template-id]" || sel === ".pc-card" ? cards : []);
+  const card = { getBoundingClientRect: rect(16, 96, 126, 160), tagName: "article", className: "pc-card", parentElement: list };
+  list.querySelector = (sel) => (sel === "[data-template-id]" ? card : null);
+  const sidebar = el("aside", "sidebar-right", rect(0, 0, 420, 900));
+  const panel = el("div", "acoR2W_panel", rect(0, 0, 420, 900), sidebar);
+  const panelBody = el("div", "acoR2W_panelBody", rect(0, 0, 420, 520), panel);
+  const tabBody = el("div", "acoR2W_tabBody", rect(0, 0, 420, 520), panelBody);
+  const wrap = el("div", "pc-wrap", rect(8, 40, 404, 520), tabBody);
+  wrap.innerHTML = html;
+  wrap.querySelectorAll = (sel) => (sel === "[data-template-id]" || sel === ".pc-card" ? cards : []);
+  wrap.querySelector = (sel) => (sel === "[data-template-id]" ? card : sel === ".pc-list" ? list : null);
+  const doc = {
+    head: { appendChild: () => {} },
+    createElement: () => ({ appendChild: () => {}, remove: () => {}, id: "" }),
     getElementById: (id) => (id === "dsh-plot-clone-tab-style" ? { id } : null),
     querySelector: (sel) => {
       if (sel === "[data-pc-wrap]") return wrap;
       if (sel === "[data-template-id]") return card;
-      if (sel === ".pc-tab-title") return { getBoundingClientRect: rect(8, 8, 48, 20), parentElement: parent };
+      if (sel === ".pc-tab-title") return { getBoundingClientRect: rect(8, 8, 48, 20), parentElement: panelBody, tagName: "span", className: "pc-tab-title" };
       return null;
     },
+    elementFromPoint: () => ({ tagName: "article", className: "pc-card" })
   };
+  docRef = doc;
+  return doc;
 }
 
 function mount(fetchImpl) {
@@ -865,6 +892,7 @@ function mount(fetchImpl) {
       window: { getComputedStyle: () => ({ display: "flex", height: "520px", overflow: "hidden" }) },
       document: layoutDocument(),
       requestAnimationFrame: (cb) => cb(),
+      setTimeout: (fn, ms) => setTimeout(fn, ms),
       console: { warn() {}, log() {}, error() {} },
       diagPosts: [],
       fetch: async (url, init) => {
@@ -975,12 +1003,27 @@ function mount(fetchImpl) {
   assert.ok(goodPhases.includes("panel-enter"), `面板必须上报 panel-enter，实际 ${goodPhases.join(",")}`);
   assert.ok(goodPhases.includes("panel-ready"), `首次加载完成必须上报 panel-ready，实际 ${goodPhases.join(",")}`);
   const readyEntry = good.diagPosts.find((b) => b !== null && b.phase === "panel-ready");
-  const rectEntry = good.diagPosts.find((b) => b !== null && b.phase === "panel-rect");
+  const rectEntry = good.diagPosts.find((b) => b !== null && b.phase === "panel-rect" && b.pass === "raf");
   assert.ok(rectEntry !== undefined, `渲染完必须上报 panel-rect（量几何），实际 ${goodPhases.join(",")}`);
   assert.equal(typeof rectEntry.wrap.height, "number", `panel-rect 必须带数字 wrap.height，实际 ${JSON.stringify(rectEntry.wrap)}`);
   assert.equal(rectEntry.wrap.height, 520, `wrap 高度必须量到 520，实际 ${rectEntry.wrap.height}`);
+  assert.ok(
+    Array.isArray(rectEntry.ancestors) && rectEntry.ancestors.length >= 3,
+    `祖先链至少 3 层（用来找哪一层 display:none / height:0 / overflow:hidden），实际 ${Array.isArray(rectEntry.ancestors) ? rectEntry.ancestors.length : "非数组"}`,
+  );
+  assert.ok(rectEntry.parentStyle !== null, "必须能读到父级计算样式");
   assert.equal(rectEntry.parentStyle.display, "flex", `要能读到父级 display，实际 ${JSON.stringify(rectEntry.parentStyle)}`);
   assert.equal(rectEntry.styleApplied, true, "要能判断注入的样式表在不在");
+  assert.equal(rectEntry.cards.byAttr, 49, `必须能数到 49 张卡片（data-template-id），实际 ${JSON.stringify(rectEntry.cards)}`);
+  assert.equal(typeof rectEntry.innerLen, "number", "必须带 innerLen（判断有没有渲染出内容）");
+  assert.ok(rectEntry.innerLen > 0, `innerLen 必须大于 0，实际 ${rectEntry.innerLen}`);
+  assert.ok(String(rectEntry.innerHead).includes("pc-head"), `innerHead 必须带真实 HTML 片段，实际 ${String(rectEntry.innerHead).slice(0, 80)}`);
+  assert.ok(rectEntry.ancestors.every((a) => typeof a.name === "string" && a.rect !== undefined), "每层祖先都要有 tagName+class 与 rect");
+  assert.ok(rectEntry.atPoint !== null && rectEntry.atPoint !== undefined, "必须带 elementFromPoint 结果（判断有没有被别的层盖住）");
+  assert.equal(rectEntry.rootKind, "document", `必须报告挂在哪棵树上，实际 ${rectEntry.rootKind}`);
+  await new Promise((r) => setTimeout(r, 700));
+  const lateEntry = good.diagPosts.find((b) => b !== null && b.phase === "panel-rect" && b.pass === "late");
+  assert.ok(lateEntry !== undefined, "panel-ready 后 600 ms 必须再量一次（pass=late），两次都报才有对比");
 
   // 标题也要量：被压成 0 高时标题也看不见，得能和内容区分开。
   const titleText = textOf(good.plugin.PanelTitle()).join("");
