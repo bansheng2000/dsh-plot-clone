@@ -17,9 +17,9 @@ origin_figure(data_source=".probe/data/eis.csv", plot_type="scatter", x_column="
 
 ## 导出
 
-- PNG：`templates/evidence/eis.png`，**1800 × 1276 px**，25835 bytes（通道 `save_fig(expGraph)`）
-- PDF：`.probe/deliver/eis.pdf`，22032 bytes（不放仓库；交付时按需重导）
-- OPJU：`.probe/deliver/eis.opju` —— **不是单模板工程**，是本次 20 个模板共用的工程快照（`.probe/deliver/all-templates.opju`，498988 bytes）按 id 复制，内容含全部 20 页
+- PNG：`templates/evidence/eis.png`，**1800 × 1276 px**，26320 bytes（通道 `save_fig(expGraph)`）
+- PDF：`.probe/deliver/eis.pdf`，22226 bytes（不放仓库；交付时按需重导）
+- OPJU：`.probe/deliver/eis.opju` —— **不是单模板工程**，是本次 20 个模板共用的工程快照（`.probe/deliver/all-titles.opju`，494331 bytes）按 id 复制，内容含全部 20 页
 - 校验：`verify_deliverable.py templates/evidence/eis.png .probe/deliver/eis.pdf .probe/deliver/eis.opju --min-width 1800` → **rc=0**，6 项全 PASS（file×3 / basename / width 1800 px / watermark `mask 0 px`）
 
 ## 数据
@@ -29,6 +29,17 @@ origin_figure(data_source=".probe/data/eis.csv", plot_type="scatter", x_column="
 ## 能否支撑这个模板
 
 能支撑：`-Z''` vs `Z'` 的半圆加扩散尾出来了，是 EIS 通道的最小可用形态。
+
+## 轴标题（期望 vs 读回，2026-11-05 二次实测）
+
+修复通道：origin_plot + style_overrides；图页 `Graph2`。
+
+| 轴 | 期望（= 数据列单位） | 读回 | 是否逐字符相等 |
+| --- | --- | --- | --- |
+| x | `Z' (ohm)` | `Z' (ohm)` | 是 |
+| y | `-Z'' (ohm)` | `-Z'' (ohm)` | 是 |
+
+读回通道：LabTalk `xb.text$` / `yl.text$`（`origin_labtalk` → `readback_status: ok`）。
 
 ## 已知差量
 

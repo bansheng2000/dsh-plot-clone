@@ -17,9 +17,9 @@ origin_figure(data_source=".probe/data/trend.csv", plot_type="line", x_column="T
 
 ## 导出
 
-- PNG：`templates/evidence/trend.png`，**1800 × 1276 px**，30693 bytes（通道 `save_fig(expGraph)`）
-- PDF：`.probe/deliver/trend.pdf`，20532 bytes（不放仓库；交付时按需重导）
-- OPJU：`.probe/deliver/trend.opju` —— **不是单模板工程**，是本次 20 个模板共用的工程快照（`.probe/deliver/all-templates.opju`，498988 bytes）按 id 复制，内容含全部 20 页
+- PNG：`templates/evidence/trend.png`，**1800 × 1276 px**，30464 bytes（通道 `save_fig(expGraph)`）
+- PDF：`.probe/deliver/trend.pdf`，20127 bytes（不放仓库；交付时按需重导）
+- OPJU：`.probe/deliver/trend.opju` —— **不是单模板工程**，是本次 20 个模板共用的工程快照（`.probe/deliver/all-titles.opju`，494331 bytes）按 id 复制，内容含全部 20 页
 - 校验：`verify_deliverable.py templates/evidence/trend.png .probe/deliver/trend.pdf .probe/deliver/trend.opju --min-width 1800` → **rc=0**，6 项全 PASS（file×3 / basename / width 1800 px / watermark `mask 0 px`）
 
 ## 数据
@@ -30,6 +30,17 @@ origin_figure(data_source=".probe/data/trend.csv", plot_type="line", x_column="T
 
 能支撑：3 个处理组的趋势折线 + 图例 + 逐色区分。
 
-## 已知差量
+## 轴标题（期望 vs 读回，2026-11-05 二次实测）
 
-- x 标题 `Time (h)` → `Time (s)`（单位被引擎改写，需手改）
+修复通道：origin_plot + style_overrides（y 由 LabTalk 补）；图页 `Graph5`。
+
+| 轴 | 期望（= 数据列单位） | 读回 | 是否逐字符相等 |
+| --- | --- | --- | --- |
+| x | `Time (h)` | `Time (h)` | 是 |
+| y | `Value` | `Value` | 是 |
+
+读回通道：LabTalk `xb.text$` / `yl.text$`（`origin_labtalk` → `readback_status: ok`）。
+
+注：y 轴原为空白（引擎不推断多系列共同量名），空标题会被 Origin 回填成工程路径 `E:\文档\OriginLab\User Files\`，故补中性名 `Value`；**具体量名/单位需用户确认**
+
+## 已知差量
