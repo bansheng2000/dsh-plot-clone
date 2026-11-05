@@ -214,7 +214,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 python templates_index.py --selected
 ```
 
-- `SELECTED none` → 用户没选，走自动匹配（见下文「再验索引」到「未命中」）。
+- `SELECTED none` → 用户没选（含点过面板的「取消选择」：`selected` 落成 `null` 或空串），走自动匹配（见下文「再验索引」到「未命中」）。
 - 有 selected 且 `[implemented]` → **直接按这条模板的 `renderer.channel` + 两份契约走**，跳过「再验索引」「列三组模板」两段。用户明确选的图型不许换成你觉得更好的。
 - 有 selected 且 `[spec-only]` → 原话说明「这个图型我只有规格、渲染未对接」，给自由构图 / 近似 implemented 两个选项（同下文「命中 spec-only」）。这是用户自己选的，如实告知**不算静默降级**。
 - 有 selected 但**是用户模板**（列表项 `kind:"user"`、`status:"external"`）→ `selection.json` 里带 `origin_file`（绝对路径）和 `usage`。**不要解析这个 Origin 文件、不要量测、不要建 spec**，走已有通道把样式取出来：
@@ -261,6 +261,8 @@ python templates_index.py --list
 | **用户模板** | 用户上传/保存的 **Origin 文件**（`.otp .otpu .opj .opju .oth`，原件原样复制 + `meta.json`），存在 `~/.dsh/dsh-plot-clone/user-templates/<id>/`，不在仓库里 | 用户（运行时目录） |
 
 用户模板的 `status` 是 `external`——它渲染在 Origin 里，不是我们的通道，所以**不标 implemented、也不标 spec-only**；没有缩略图就显示「无缩略图」，不许拿别人的实拍图顶。
+
+面板上每张卡都有 ★ 收藏 与「重命名」：系统模板的改名只写 `~/.dsh/dsh-plot-clone/aliases.json` 的显示名（仓库 `templates/system/*` 不动，留空即恢复原名），`--list` 会显示「<别名>（别名）」；`--check` 会报指向已删 id 的悬空别名。已选状态顶部有「取消选择」、卡片按钮变「已选 / 取消」，再点一次即写 `selected:null`。
 
 筛选用 `--group system|user|favorites`、`--status implemented|spec-only`。
 

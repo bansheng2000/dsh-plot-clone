@@ -1412,6 +1412,60 @@ function mount(fetchImpl, docOverride) {
   );
   assert.ok(!mixUser.text.includes("undefined"), "用户卡片渲染不许出现 undefined");
 
+  // 三条面板意见的 UI 侧：星标与「重命名」必须每张卡都有（系统 + 用户一视同仁）。
+  await clickChip(mix, "全部"); // 回到全部 49 张再数，避免刚被「用户」档过滤成 1 张
+  const mixTree = await mix.render();
+  const mixCards = nodesWith(mixTree, "data-template-id");
+  const starBtns = allNodes(mixTree).filter(
+    (n) =>
+      n.type === "button" &&
+      n.props &&
+      (n.props["aria-label"] === "收藏" || n.props["aria-label"] === "取消收藏"),
+  );
+  assert.equal(
+    starBtns.length,
+    mixCards.length,
+    `每张卡都必须恰好一颗收藏星（系统+用户），期望 ${mixCards.length}，实际 ${starBtns.length}`,
+  );
+  const renameBtns = allNodes(mixTree).filter((n) => n.type === "button" && textOf(n).join("").trim() === "重命名");
+  assert.equal(
+    renameBtns.length,
+    mixCards.length,
+    `每张卡都必须有「重命名」（系统模板写别名，用户模板改 meta），期望 ${mixCards.length}，实际 ${renameBtns.length}`,
+  );
+
+  // 取消选择：已选时顶部有「已选：<名字>」+「取消选择」，卡片按钮变「已选 / 取消」且点击即清空。
+  const selPosts = [];
+  const selMount = mount(async (url, init) => {
+    const body = init !== undefined && typeof init.body === "string" ? JSON.parse(init.body) : null;
+    if (body !== null) selPosts.push(body);
+    if (String(url).endsWith("/templates")) return { ok: true, status: 200, json: async () => ({ ok: true, templates: mixed }) };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, selected: body !== null && "selected" in body ? body.selected ?? null : "tpl-0", favorites: [] }),
+    };
+  });
+  const selTree = await selMount.render();
+  const selText = textOf(selTree).join(" ");
+  assert.match(selText, /已选：\s*模板 0/, `已选状态必须显示「已选：<模板名>」，实际：${selText.slice(0, 140)}`);
+  const topCancel = allNodes(selTree).find((n) => n.type === "button" && textOf(n).join("").trim() === "取消选择");
+  assert.ok(topCancel !== undefined, "已选状态顶部必须有「取消选择」按钮（旧代码这里叫「清除」/没有入口）");
+  const cardCancel = allNodes(selTree).find((n) => n.type === "button" && textOf(n).join("").trim() === "已选 / 取消");
+  assert.ok(cardCancel !== undefined, "已选那张卡的按钮必须变成「已选 / 取消」，一眼能看出是取消");
+  cardCancel.props.onClick();
+  await new Promise((r) => setTimeout(r, 20));
+  const clearedText = textOf(await selMount.render()).join(" ");
+  assert.equal(
+    selPosts.filter((b) => "selected" in b).at(-1)?.selected,
+    null,
+    "点「已选 / 取消」必须 POST selected:null（旧代码只会再选一次同一个 id）",
+  );
+  assert.ok(
+    clearedText.includes("当前没选模板"),
+    `清空后必须回到未选状态文案，实际：${clearedText.slice(0, 140)}`,
+  );
+
   const bad = mount(badFetch);  const badText = textOf(await bad.render()).join(" ");
   const badCards = nodesWith(await bad.render(), "data-template-id");
   assert.ok(badText.includes("HTTP 404"), `列表拉不到时必须渲染错误文案，实际文本：${badText.slice(0, 160)}`);
@@ -1458,12 +1512,142 @@ function mount(fetchImpl, docOverride) {
     `imgs=${brImgs.length}/${expectThumbs} bound=${brImgs.filter((p) => typeof p.onMouseEnter === "function").length}/${expectThumbs} 无图占位=${placeholdersOf(brTree)} broken→img=${brImgs2.length} src残留=${nodesWith(brTree2, "src").includes(badSrc)} layerErr收层=${brRec.removed.includes(layerErrLayer)}`,
   );
 
+  ok(
+    "三条面板意见（UI）：星标与重命名每张卡都有 + 已选显示名字与「取消选择」+ 卡片「已选 / 取消」发 selected:null",
+    `cards=${mixCards.length} stars=${starBtns.length} rename=${renameBtns.length} 已选文案=${/已选：\s*模板 0/.test(selText)} 顶部取消=${textOf(topCancel).join("")} POST=${JSON.stringify(selPosts.filter((b) => "selected" in b).at(-1))} 清空后=${clearedText.includes("当前没选模板")}`,
+  );
+
   if (process.env.HTML_PROBE === "1") {
     const html = htmlOf(goodTree);
     console.log(`\n[HTML_PROBE] data-template-id count = ${htmlCards}`);
     console.log(`[HTML_PROBE] pc-card count = ${html.split('class="pc-card"').length - 1}`);
     console.log(`[HTML_PROBE] html head = ${html.slice(0, 160)}`);
   }
+}
+
+/* ───────────── 20) 三条面板意见的接口侧：取消选择 / 别名只写 aliases.json / 收藏统一 ───────────── */
+{
+  const { createHash } = await import("node:crypto");
+  const md5 = (buf) => createHash("md5").update(buf).digest("hex");
+  await withRoutes(async ({ base, env }) => {
+    const listAll = async () => JSON.parse((await httpGet(`${base}/templates`)).body.toString("utf8"));
+    const readSel = async () => JSON.parse((await httpGet(`${base}/selection`)).body.toString("utf8"));
+    const selPath = tm.selectionPath(env);
+    const aliasesFile = tm.aliasPath(env);
+
+    // ① 取消选择：null 与 "" 都必须落盘成 null，回读 none（py 侧 S4/S5 另验 --selected 报 none）。
+    for (const clearValue of [null, ""]) {
+      const on = await httpGet(`${base}/selection`, "POST", { selected: "bar" });
+      assert.equal(on.status, 200);
+      assert.equal((await readSel()).selected, "bar");
+      const clear = await httpGet(`${base}/selection`, "POST", { selected: clearValue });
+      assert.equal(clear.status, 200, `selected=${JSON.stringify(clearValue)} 必须 200（旧代码会当成非法 id）`);
+      assert.equal(
+        JSON.parse(clear.body.toString("utf8")).selected,
+        null,
+        `selected=${JSON.stringify(clearValue)} 的回执必须是 null`,
+      );
+      assert.equal((await readSel()).selected, null, `POST 后 GET 必须回读 none`);
+      assert.equal(
+        JSON.parse(readFileSync(selPath, "utf8")).selected,
+        null,
+        `selection.json 必须落 null（selected=${JSON.stringify(clearValue)}）`,
+      );
+    }
+
+    // ② 系统模板改名：只写 aliases.json，仓库里的 templates/system/* 一个字节都不许动。
+    const before = await listAll();
+    const origName = before.templates.find((t) => t.id === "bar").name;
+    const schemaPath = join(tplDir, "system", "bar", "schema.json");
+    const schemaMd5 = md5(readFileSync(schemaPath));
+    const aliasName = "柱状图（我的叫法）";
+    const set = await httpGet(`${base}/aliases`, "POST", { id: "bar", name: aliasName });
+    assert.equal(set.status, 200, `写别名应 200，实际：${set.body.toString("utf8").slice(0, 160)}`);
+    const setBody = JSON.parse(set.body.toString("utf8"));
+    assert.equal(setBody.name, aliasName);
+    assert.equal(setBody.template.name, aliasName, "回执里的模板必须已经是新显示名");
+    assert.equal(setBody.template.alias, aliasName, "模板条目必须带 alias 字段（区分改名与原名）");
+    const renamed = await listAll();
+    const barRenamed = renamed.templates.find((t) => t.id === "bar");
+    assert.equal(barRenamed.name, aliasName, "列表必须显示别名");
+    assert.equal(barRenamed.alias, aliasName);
+    assert.equal(existsSync(aliasesFile), true, "别名必须落盘到 aliases.json");
+    assert.equal(
+      JSON.parse(readFileSync(aliasesFile, "utf8")).bar,
+      aliasName,
+      "aliases.json 必须存 {id: 显示名}",
+    );
+    assert.equal(md5(readFileSync(schemaPath)), schemaMd5, "写别名绝不许改仓库里的 templates/system/bar/schema.json");
+    assert.equal(
+      JSON.parse((await httpGet(`${base}/aliases`)).body.toString("utf8")).aliases.bar,
+      aliasName,
+      "GET /aliases 必须读回别名",
+    );
+    const clearedAlias = await httpGet(`${base}/aliases`, "POST", { id: "bar", name: null });
+    assert.equal(clearedAlias.status, 200);
+    assert.equal(JSON.parse(clearedAlias.body.toString("utf8")).name, null);
+    assert.equal(
+      (await listAll()).templates.find((t) => t.id === "bar").name,
+      origName,
+      "清除别名后必须恢复原名",
+    );
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(JSON.parse(readFileSync(aliasesFile, "utf8")), "bar"),
+      false,
+      "清除别名必须从 aliases.json 删掉这个键",
+    );
+    const emptyAlias = await httpGet(`${base}/aliases`, "POST", { id: "bar", name: "  " });
+    assert.equal(emptyAlias.status, 200);
+    assert.equal(
+      (await listAll()).templates.find((t) => t.id === "bar").name,
+      origName,
+      "空白名字等同清除别名",
+    );
+    const tooLong = await httpGet(`${base}/aliases`, "POST", { id: "bar", name: "x".repeat(61) });
+    assert.equal(tooLong.status, 400, "别名超 60 字必须 400");
+    assert.equal(JSON.parse(tooLong.body.toString("utf8")).code, "bad-name");
+    const ghostAlias = await httpGet(`${base}/aliases`, "POST", { id: "ghost", name: "幽灵" });
+    assert.equal(ghostAlias.status, 404, "别名指向不存在的 id 必须 404");
+
+    // ③ 收藏：系统 + 用户各一颗星 → favorites 两条 → 收藏档能筛出 2 条 → 取消归零。
+    const upFav = await httpSend(
+      `${base}/user-templates?filename=fav-demo.otp&name=${encodeURIComponent("收藏用用户模板")}`,
+      "POST",
+      Buffer.from("FAV-OTP-BYTES"),
+    );
+    assert.equal(upFav.status, 200);
+    const userId = JSON.parse(upFav.body.toString("utf8")).id;
+    const userAlias = await httpGet(`${base}/aliases`, "POST", { id: userId, name: "想改用户模板名" });
+    assert.equal(userAlias.status, 400, "用户模板别名必须引导到 /user-templates/<id>/rename");
+    assert.equal(JSON.parse(userAlias.body.toString("utf8")).code, "use-rename");
+
+    const fav = await httpGet(`${base}/selection`, "POST", { favorites: ["bar", userId] });
+    assert.equal(fav.status, 200);
+    const favView = JSON.parse(fav.body.toString("utf8"));
+    assert.deepEqual(favView.favorites, ["bar", userId], "系统 + 用户模板都要能收藏");
+    const favIds = favView.favorites;
+    const favCards = (await listAll()).templates.filter((t) => favIds.includes(t.id));
+    assert.equal(favCards.length, 2, `收藏档必须筛出 2 条（1 系统 + 1 用户），实际 ${favCards.length}`);
+    assert.deepEqual(
+      favCards.map((t) => t.id).sort(),
+      ["bar", userId].sort(),
+      "筛出来的必须正是收藏的那两条",
+    );
+    assert.equal(existsSync(join(tplDir, "system", "bar", "schema.json")), true);
+    const zero = await httpGet(`${base}/selection`, "POST", { favorites: [] });
+    assert.equal(zero.status, 200);
+    assert.deepEqual(JSON.parse(zero.body.toString("utf8")).favorites, [], "取消收藏后必须归零");
+    assert.deepEqual(
+      JSON.parse(readFileSync(selPath, "utf8")).favorites,
+      [],
+      "selection.json 里 favorites 必须归零",
+    );
+
+    ok(
+      "三条面板意见（接口）：selected null/\"\" 都清空 + 系统别名只写 aliases.json（仓库 md5 不变）+ 系统/用户各收藏后归零",
+      `清空=${[null, ""].map((v) => JSON.stringify(v)).join("/")} 别名=${aliasName} schemaMd5=${schemaMd5.slice(0, 8)} 收藏=${favCards.length}条(${favIds.join(",")})→${JSON.parse(zero.body.toString("utf8")).favorites.length}条`,
+    );
+  });
 }
 
 console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档 / 预设分类层 / 缩略图放大 / 坏图不放大）`);

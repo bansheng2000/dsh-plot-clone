@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import re
 import json
 import os
 import shutil
@@ -67,6 +68,8 @@ VARIANT_WHITELIST = {
     "origin_plot_contour": {"contour", "contour_fill", "3d_wire"},
     "origin_matrix_plot": {"surface", "scatter", "contour", "contour_fill", "3d_wire"},
 }
+
+ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 STATUSES = ("implemented", "spec-only")
 GROUPS = ("all", "favorites", "system", "user")
@@ -200,6 +203,14 @@ def check_index(root, env=None):
                     "（删模板必须同时摘收藏）" % fid
                 )
 
+    # 4c：显示名别名不许指向不存在的模板（系统模板改名只写 aliases.json，删模板时要一起清）
+    alias_count = 0
+    if env is not None:
+        for aid in sorted(read_aliases(env)):
+            alias_count += 1
+            if aid not in ids:
+                issues.append("dangling alias: aliases.json 里的 %s 不存在（别名不许指向已删除的模板）" % aid)
+
     # 5：通道白名单
     channel_count = 0
     for tpl in templates:
@@ -270,6 +281,7 @@ def check_index(root, env=None):
     lines.append("CHECK path       system=%d" % system_count)
     lines.append("CHECK contract   schemas=%d  keys=%d" % (contract_count, len(CONTRACT_KEYS)))
     lines.append("CHECK favorite   favorites=%d  selection=%d  dangling=%d" % (len(favorites), selection_favorites, dangling))
+    lines.append("CHECK alias      aliases=%d" % alias_count)
     lines.append("CHECK channel    channels=%d  whitelist=%d" % (channel_count, len(CHANNEL_WHITELIST)))
 
     if issues:
@@ -354,12 +366,13 @@ def match_templates(root, roles=None, ncols=None, limit=5):
 # ───────────────────────── 清单 ─────────────────────────
 
 
-def list_templates(root, group="all", status=None):
+def list_templates(root, group="all", status=None, env=None):
     p = paths_for(root)
     if not os.path.isfile(p["index"]):
         return RC_USAGE, ["ERROR index not found: %s" % p["index"]]
     index = load_json(p["index"])
     templates = index.get("templates") or []
+    aliases = read_aliases(env) if env is not None else {}
 
     favorites = []
     if os.path.isfile(p["favorites"]):
@@ -372,11 +385,14 @@ def list_templates(root, group="all", status=None):
     fav_set = set(fav_ids)
 
     def row(tpl):
+        tid = str(tpl.get("id") or "")
         mark = "*" if tpl.get("id") in fav_set else " "
         gap = tpl.get("gap")
         note = "" if tpl.get("status") == "implemented" else "  [spec-only: %s]" % (gap or "未写 gap")
-        return "%s %-22s %-13s %-34s %s%s" % (
-            mark, tpl.get("id"), tpl.get("status"), tpl.get("category") or "-",
+        alias = aliases.get(tid)
+        label = (alias + "（别名）") if alias else (tpl.get("name_zh") or "")
+        return "%s %-22s %-20s %-13s %-30s %s%s" % (
+            mark, tid, label, tpl.get("status"), tpl.get("category") or "-",
             ",".join((tpl.get("renderer") or {}).get("channel") or []), note,
         )
 
@@ -596,6 +612,39 @@ def selftest():
         os.remove(os.path.join(paths_for(root)["templates"], "system", "bar", "schema.json"))
     run_case("M10 缺 schema.json", m10, "missing schema", RC_FAIL)
 
+    # 别名（aliases.json）：悬空要报、--list 要显示别名
+    def alias_cases():
+        root = tempfile.mkdtemp(prefix="tplidx-alias-")
+        home = tempfile.mkdtemp(prefix="tplidx-aliashome-")
+        try:
+            _baseline(root)
+            env = {"DSH_HOME": home}
+            ap = aliases_path(env)
+            os.makedirs(os.path.dirname(ap))
+            with io.open(ap, "w", encoding="utf-8") as fh:
+                json.dump({"ghost": "幽灵模板"}, fh, ensure_ascii=False)
+            rc, lines = check_index(root, env=env)
+            text = "\n".join(lines)
+            good = rc == RC_FAIL and "dangling alias" in text and "ghost" in text
+            checks.append(("M13 别名指向不存在的 id", rc, RC_FAIL, "dangling alias", "dangling alias" in text, good))
+            if not good:
+                failures.append("M13: rc=%s text=%s" % (rc, text))
+
+            with io.open(ap, "w", encoding="utf-8") as fh:
+                json.dump({"bar": "柱状图（我的叫法）"}, fh, ensure_ascii=False)
+            rc2, lines2 = check_index(root, env=env)
+            rc3, lines3 = list_templates(root, env=env)
+            text3 = "\n".join(lines3)
+            good2 = rc2 == RC_OK and "柱状图（我的叫法）" in text3 and "（别名）" in text3
+            checks.append(("M13b --list 显示别名", rc3, RC_OK, "（别名）", "（别名）" in text3, good2))
+            if not good2:
+                failures.append("M13b: rc=%s rc2=%s text=%s" % (rc3, rc2, text3))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+            shutil.rmtree(home, ignore_errors=True)
+
+    alias_cases()
+
     # --match：只推 implemented、缺列缺角色要说清、spec-only 一个都不列
     def match_cases():
         root = tempfile.mkdtemp(prefix="tplidx-match-")
@@ -657,6 +706,9 @@ def selftest():
     sel_case("S1 选中 implemented", "bar", "按用户选择做")
     sel_case("S2 选中 spec-only", "bar", "只有规格、渲染未对接", spec_only=True)
     sel_case("S3 选中过期 id", "ghost", "过期选择")
+    # 面板「取消选择」落盘就是 null 或空串：--selected 必须报 none，不许回显旧值。
+    sel_case("S4 取消选择（null）", None, "SELECTED none")
+    sel_case("S5 取消选择（空串）", "", "SELECTED none")
 
     print("templates_index selftest")
     for label, rc, expect_rc, kw, hit, good in checks:
@@ -668,7 +720,7 @@ def selftest():
         for f in failures:
             print("  " + f)
         return 1
-    print("\nselftest ok: %d/%d（1 条基线 + 11 条变异 + 3 条 --selected 分支，全部按预期 rc 与关键词判定）" % (len(checks), len(checks)))
+    print("\nselftest ok: %d/%d（1 条基线 + 11 条变异 + 5 条 --selected 分支 + 2 条别名，全部按预期 rc 与关键词判定）" % (len(checks), len(checks)))
     return 0
 
 
@@ -680,6 +732,34 @@ def selection_path(env=None):
     env = env if env is not None else os.environ
     home = env.get("DSH_HOME") or os.path.join(env.get("USERPROFILE") or os.path.expanduser("~"), ".dsh")
     return os.path.join(home, "dsh-plot-clone", "selection.json")
+
+
+def aliases_path(env=None):
+    """与插件 `lib/templates.js:aliasPath` 同口径：<state>/dsh-plot-clone/aliases.json（只存显示名）。"""
+    env = env if env is not None else os.environ
+    home = env.get("DSH_HOME") or os.path.join(env.get("USERPROFILE") or os.path.expanduser("~"), ".dsh")
+    return os.path.join(home, "dsh-plot-clone", "aliases.json")
+
+
+def read_aliases(env=None):
+    """{id: 显示名}；非法键值一律忽略（与插件 readAliases 同判据）。"""
+    try:
+        raw = load_json(aliases_path(env))
+    except (IOError, OSError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for key, val in raw.items():
+        if not isinstance(key, str) or not ID_RE.match(key):
+            continue
+        if not isinstance(val, str):
+            continue
+        name = val.strip()
+        if name == "" or len(name) > 60:
+            continue
+        out[key] = name
+    return out
 
 
 def user_template_ids(env=None):
@@ -793,7 +873,7 @@ def main(argv=None):
         print("\n".join(lines))
         return rc
     if args.list:
-        rc, lines = list_templates(root, group=args.group, status=args.status)
+        rc, lines = list_templates(root, group=args.group, status=args.status, env=os.environ)
         print("\n".join(lines))
         return rc
 
