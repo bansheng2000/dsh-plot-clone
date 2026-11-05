@@ -653,6 +653,9 @@ function httpSend(url, method, body, headers = {}) {
   assert.match(src, /"dsh-plot-clone\/templates"/, "TAB_ID 必须钉死");
   assert.match(src, /typeof tabs\.register !== "function"/, "拿不到 slot 时必须安全跳过而不是抛异常");
   assert.match(src, /无实拍/, "spec-only 卡片必须有「无实拍」占位文案");
+  assert.match(src, /phase: "panel-error"/, "面板必须有渲染兜底上报（panel-error）");
+  assert.match(src, /whiteSpace: "pre-wrap"/, "渲染兜底必须把 stack 显示出来（pre-wrap），不许白屏无痕迹");
+  assert.match(src, /模板 · 加载中/, "顶层必须始终渲染一行标题（加载中 / 共 N 个）");
 
   const pkg = JSON.parse(fsMod.readFileSync(join(rootDir, "package.json"), "utf8"));
   assert.equal(pkg.exports["./client"], "./lib/client.js", "exports 必须暴露 ./client");
@@ -737,6 +740,9 @@ function httpSend(url, method, body, headers = {}) {
   assert.ok(results.every((r) => r.hasDisposer === true && r.returned === "function"));
   const regEntry = diag.find((b) => b.phase === "registered");
   assert.equal(regEntry.registered, 2, "registered 必须带成功条数 2");
+  const slotResults = diag.filter((b) => b.phase === "slot-result");
+  assert.equal(slotResults.length, 4, `两个 key × 内容/标题 = 4 条槽位注册，必须都有 slot-result，实际 ${slotResults.length}`);
+  assert.ok(slotResults.every((r) => r.returned === "function"), "slot-result 必须带返回值形态");
 
   // disposer 三种形态：函数 / {dispose} / undefined（拿不到也不能算没注册）
   assert.equal(typeof plugin.disposerOf(() => {}), "function");
@@ -832,7 +838,17 @@ function httpSend(url, method, body, headers = {}) {
       window: {},
       document: { getElementById: () => null, head: { appendChild: () => {} }, createElement: () => ({}) },
       console: { warn() {}, log() {}, error() {} },
-      fetch: fetchImpl,
+      diagPosts: [],
+      fetch: async (url, init) => {
+        try {
+          if (String(url).includes("/diag")) {
+            sandbox.diagPosts.push(JSON.parse(init && init.body ? init.body : "null"));
+          }
+        } catch {
+          /* 抓不到就算了，不影响面板 */
+        }
+        return fetchImpl(url, init);
+      },
     };
     sandbox.window.__ModuleLoader__ = { load: (cfg) => { sandbox.__cfg = cfg; } };
     sandbox.globalThis = sandbox;
@@ -876,7 +892,7 @@ function httpSend(url, method, body, headers = {}) {
       }
       return tree;
     };
-    return { plugin, render };
+    return { plugin, render, diagPosts: sandbox.diagPosts };
   }
 
   const textOf = (node, out = []) => {
@@ -924,6 +940,15 @@ function httpSend(url, method, body, headers = {}) {
   assert.equal(cards.length, 49, `卡片数必须是 49，实际 ${cards.length}`);
   assert.ok(!goodText.includes("undefined"), "渲染结果里不许出现 undefined");
   assert.ok(goodText.includes("无实拍 / 仅规格，渲染未对接"), "spec-only 卡片必须显示「无实拍」");
+
+  // 可见自证 + 埋点：顶层永远有一行「模板 · 共 N 个」，panel-enter / panel-ready 必须真发出去。
+  assert.ok(goodText.includes("模板 · 共 49 个"), `顶层必须始终渲染「模板 · 共 N 个」，实际开头：${goodText.slice(0, 80)}`);
+  const goodPhases = good.diagPosts.map((b) => (b === null ? "" : b.phase));
+  assert.ok(goodPhases.includes("panel-enter"), `面板必须上报 panel-enter，实际 ${goodPhases.join(",")}`);
+  assert.ok(goodPhases.includes("panel-ready"), `首次加载完成必须上报 panel-ready，实际 ${goodPhases.join(",")}`);
+  const readyEntry = good.diagPosts.find((b) => b !== null && b.phase === "panel-ready");
+  assert.equal(readyEntry.count, 49, `panel-ready 必须带张数 49，实际 ${readyEntry.count}`);
+  assert.equal(readyEntry.error, null, "正常加载时 panel-ready.error 必须是 null");
 
   // 筛选三档按「来源」：全部 / 预设 / 收藏（status 只做徽标，不许占筛选位）。
   const allNodes = (node, out = []) => {
@@ -1089,7 +1114,7 @@ function httpSend(url, method, body, headers = {}) {
 
   ok(
     "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选四档 + 「预设」下分类层 + 用户卡片无伪造预览",
-    `cards=${cards.length} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fUser.cards}/${fFav.cards} 用户空态=${fUser.text.includes("还没有你自己的模板")} 用户卡片=${mixUser.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind}`,
+    `cards=${cards.length} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fUser.cards}/${fFav.cards} 用户空态=${fUser.text.includes("还没有你自己的模板")} 用户卡片=${mixUser.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind} diag=${goodPhases.includes("panel-enter")}/${goodPhases.includes("panel-ready")}`,
   );
 }
 
