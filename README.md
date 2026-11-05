@@ -51,7 +51,7 @@
 | `verify_deliverable.py` | **交付三件套文件层检查**（不读 Origin 对象属性，那是 `origin_verify_graph` 的活）：三个文件存在且非空、三者同 basename、PNG 宽 ≥ `--min-width`（默认 1800）；逐项 PASS/FAIL，rc 0 全过 / 4 有 FAIL / 2 用法错误；`--selftest` 用临时文件造「缺文件 / basename 不一致 / 宽度不够 / 全过」四种场景断言 |
 | `test_synth.py` | **合成真值自检**：画出几何已知的图（框位置、20px 带、渐变带、1x/2x/4x 刻度、d=10/20 点径、已知字高、2px 细线、半宽面板、双面板），对三个脚本的读数逐项断言（29 条，公差 ±1px/±2%）。改量测代码先跑它 |
 | `templates_index.py` | **模板索引的机器闸门**：`--check` 五条断言（implemented 必须有实测证据文件且非空 / spec-only 必须有 `gap` / system 模板 path 必须在 `templates/system/` 下 / 收藏不许悬空 / `renderer.channel` 的工具名与变体必须在白名单），rc 0 全过 / 1 有 FAIL / 2 索引缺失；`--list` 按「收藏置顶 → 系统按图型分组 → 用户」列三类；`--selected` 读用户在页面上选的那个模板（四分支：none / 过期选择 / implemented 给通道 / spec-only 报 gap）；`--selftest` 八条变异 + 三条 `--selected` 分支全部必须真红。**没证据的 implemented 过不了这道闸** |
-| `lib/templates.js` | **模板选择页的服务端**：`/plugins/dsh-plot-clone` 下 7 条路由（prefix 注册在 `webServer` seam，不新开端口）；列表 = 49 条系统模板 + 用户模板，缩略图**只认 `templates/evidence/<id>.png`（系统）或 `user-templates/<id>/thumb.png`（用户）**，没有就给 `thumb: null` 且 404 `no-thumbnail`（不许拿 implemented 的图冒充）；选中与收藏写 `~/.dsh/dsh-plot-clone/selection.json`，选中用户模板时把 `origin_file` 绝对路径与 `usage` 一起写盘 |
+| `lib/templates.js` | **模板选择页的服务端**：`/plot-clone` 下 8 条路由（prefix 注册在 `webServer` seam，不新开端口）；**前缀必须独立**——早期把整段挂在 `/plugins/dsh-plot-clone` 下，把宿主下发客户端 bundle 的路由一起吃掉（`/plugins/<id>/client.js` 404），标签就永远显示「这类内容还没有可用的查看方式」；现在遇到非自有前缀一律 `return undefined` 让位；`/plot-clone/diag` 是客户端诊断（GET 读最近 50 条、POST 追加、坏 JSON 400），回答「bundle 到底有没有执行 apply」；列表 = 49 条系统模板 + 用户模板，缩略图**只认 `templates/evidence/<id>.png`（系统）或 `user-templates/<id>/thumb.png`（用户）**，没有就给 `thumb: null` 且 404 `no-thumbnail`（不许拿 implemented 的图冒充）；选中与收藏写 `~/.dsh/dsh-plot-clone/selection.json`，选中用户模板时把 `origin_file` 绝对路径与 `usage` 一起写盘 |
 | `lib/user_templates.js` | 用户模板 = 一个 **Origin 文件**（`.otp .otpu .opj .opju .oth`）原样复制 + `meta.json`（sha256/原始文件名/尺寸/时间）。**不解析 Origin 格式、不量测、不建 spec**；单文件上限 64 MB；`templateDir(root, id)` 是唯一目录穿越闸门 |
 | `make_user_template.mjs` | CLI：`node make_user_template.mjs --from <file> [--name][--category][--note]`，把 Origin 存下来的 `.opju/.otpu` 收进 `~/.dsh/dsh-plot-clone/user-templates/<id>/`（SKILL 第 8 步「保存模板」用它；仓库零新增） |
 | `lib/page.js` | 页面本体：自包含 HTML（内联 CSS+JS，无外部依赖、无构建链），卡片=缩略图/名称/分类/status 标/★收藏/「用这个」，顶部搜索 + status 过滤（后备网页；主入口是侧栏标签）；无图卡片显示「无实拍 / 仅规格，渲染未对接」，用户条目显示「无缩略图 / Origin 文件」 |
@@ -186,7 +186,7 @@ python verify_deliverable.py --selftest
 
 **可见入口是 DSH 右侧栏的「模板」标签**（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`，标题「模板」）——`lib/client.js` 手写 classic script 注册，`package.json` 用 `dsh.client = {platform:"web", immediately:true, inject:["slots"]}` 声明，无构建链。宿主太老、没有这个 slot 时：注册函数整体跳过，不抛异常、不炸侧栏；此时用下面的网页入口。
 
-路由和 MCP 自注册挂在同一个 `webServer` seam 上（`kind:"prefix"`，prefix `/plugins/dsh-plot-clone`），不新开端口。网页入口 `http://127.0.0.1:<DSH 端口>/plugins/dsh-plot-clone/` 与标签页是同一份数据、同一套路由。
+路由和 MCP 自注册挂在同一个 `webServer` seam 上（`kind:"prefix"`，prefix `/plot-clone`），不新开端口。网页入口 `http://127.0.0.1:<DSH 端口>/plot-clone/` 与标签页是同一份数据、同一套路由。客户端自带诊断上报（`apply` / `registered` / `error` / `window-error` 四类打到 `/plot-clone/diag`，失败静默、`keepalive`），查「客户端到底有没有加载」就看它。
 
 | 路由 | 返回 |
 |---|---|

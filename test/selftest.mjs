@@ -326,11 +326,23 @@ let LIST = [];
 async function withRoutes(fn) {
   const { dir, env } = freshHome();
   const handler = tm.createRoutes({ env, templatesDir: tplDir });
-  const server = createServer((req, res) => { handler(req, res); });
+  const server = createServer((req, res) => {
+    // 模拟宿主 seam：handler 返回 undefined 表示「不是我的路径」，交给下一个 handler。
+    Promise.resolve(handler(req, res))
+      .then((out) => {
+        if (out === undefined && !res.headersSent && !res.writableEnded) {
+          res.writeHead(404, { "content-type": "text/plain" });
+          res.end("host-fallthrough");
+        }
+      })
+      .catch(() => {});
+  });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
   try {
-    return await fn({ base: `http://127.0.0.1:${port}`, env, dir });
+    // base 带自有前缀：下面 `${base}/templates` 这类写法都落在 ROUTE_PREFIX 下；
+    // root 是不带前缀的裸 origin，用来验证「不认识的前缀必须让位」。
+    return await fn({ base: `http://127.0.0.1:${port}${tm.ROUTE_PREFIX}`, root: `http://127.0.0.1:${port}`, env, dir });
   } finally {
     await new Promise((resolve) => server.close(resolve));
     rmSync(dir, { recursive: true, force: true });
@@ -413,6 +425,63 @@ function httpGet(url, method = "GET", body) {
       `png=${png.body.length}B list=${payload.count} page=${html.length}B`,
     );
   });
+}
+
+/* ───────────── 14b) 路由前缀纪律 + 客户端诊断端点 ───────────── */
+{
+  assert.equal(tm.ROUTE_PREFIX, "/plot-clone", "自有路由必须挂在独立前缀上，不再占用宿主命名空间");
+  assert.equal(
+    tm.ROUTE_PREFIX.includes("/plugins/dsh-plot-clone"),
+    false,
+    "自有路由不得注册在 /plugins/dsh-plot-clone 下——宿主从那里下发 client bundle，占了就是 404 + 标签永远 unavailable",
+  );
+
+  await withRoutes(async ({ base, root }) => {
+    tm.resetDiag();
+
+    // 1) POST 落一条，GET 读回
+    const post = await httpSend(
+      `${base}/diag`,
+      "POST",
+      Buffer.from(JSON.stringify({ phase: "probe", detail: "hello" })),
+      { "content-type": "application/json" },
+    );
+    assert.equal(post.status, 200, `POST /diag 应 200，实际 ${post.status}`);
+    assert.equal(JSON.parse(post.body.toString("utf8")).ok, true);
+    const got = JSON.parse((await httpGet(`${base}/diag`)).body.toString("utf8"));
+    assert.equal(got.entries.length, 1, `GET /diag 应读回 1 条，实际 ${got.entries.length}`);
+    assert.equal(got.entries[0].phase, "probe");
+    assert.ok(typeof got.entries[0].ts === "string" && got.entries[0].ts.length > 0, "每条必须带 ts");
+
+    // 2) 坏 JSON → 400
+    const bad = await httpSend(`${base}/diag`, "POST", Buffer.from("{not json"), { "content-type": "application/json" });
+    assert.equal(bad.status, 400, `坏 JSON 应 400，实际 ${bad.status}`);
+    assert.equal(JSON.parse(bad.body.toString("utf8")).code, "bad-json");
+
+    // 3) 超过 50 条裁到 50，且保留最新
+    for (let i = 0; i < 60; i += 1) {
+      const r = await httpSend(`${base}/diag`, "POST", Buffer.from(JSON.stringify({ phase: "fill", i })), { "content-type": "application/json" });
+      assert.equal(r.status, 200);
+    }
+    const capped = JSON.parse((await httpGet(`${base}/diag`)).body.toString("utf8"));
+    assert.equal(capped.entries.length, tm.DIAG_MAX, `诊断环必须裁到 ${tm.DIAG_MAX} 条，实际 ${capped.entries.length}`);
+    assert.equal(capped.entries[capped.entries.length - 1].i, 59, "留下的必须是最新 50 条");
+
+    // 4) 宿主命名空间必须让位：我们不许回答 /plugins/dsh-plot-clone/*
+    const stolen = await httpGet(`${root}/plugins/dsh-plot-clone/client.js`);
+    assert.equal(stolen.status, 404, `自有 handler 不许回答宿主命名空间，实际 ${stolen.status}`);
+    assert.equal(stolen.body.toString("utf8"), "host-fallthrough", "必须返回 undefined 交给下一个 handler，而不是写自己的 404 JSON");
+    const bare = await httpGet(`${root}/templates`);
+    assert.equal(bare.body.toString("utf8"), "host-fallthrough", "没有前缀的路径也不许抢");
+
+    // 5) 自有前缀仍然正常
+    assert.equal((await httpGet(`${base}/templates`)).status, 200);
+  });
+
+  ok(
+    "路由前缀纪律 + /diag：前缀不在宿主命名空间 / 落一条读回一条 / 坏 JSON 400 / 环裁到 50 / 别的前缀让位",
+    `prefix=${tm.ROUTE_PREFIX} max=${tm.DIAG_MAX}`,
+  );
 }
 
 /* ───────────── 15) 用户模板：Origin 文件引用（上传 / 列表 / 选中带路径 / 删除 / 拒绝） ───────────── */
@@ -771,7 +840,7 @@ function httpSend(url, method, body, headers = {}) {
     category: i % 2 === 0 ? "general" : "spectroscopy",
     status: i < 9 ? "implemented" : "spec-only",
     channels: ["origin_plot:line"],
-    thumb: i < 9 ? `/plugins/dsh-plot-clone/thumb/tpl-${i}` : null,
+    thumb: i < 9 ? `/plot-clone/thumb/tpl-${i}` : null,
   }));
   const okFetch = async (url, init) => ({
     ok: true,

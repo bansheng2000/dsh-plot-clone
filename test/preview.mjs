@@ -9,12 +9,20 @@ const port = Number(process.env.PORT || 0);
 const templatesDir = resolveTemplatesDir(process.env);
 const handler = createRoutes({ env: process.env, log: (m) => console.error(`preview: ${m}`) });
 const server = createServer((req, res) => {
-  handler(req, res);
+  // 模拟宿主 seam：handler 返回 undefined = 不是我的路径，交给下一个 handler（这里就回 404）。
+  Promise.resolve(handler(req, res))
+    .then((out) => {
+      if (out === undefined && !res.headersSent && !res.writableEnded) {
+        res.writeHead(404, { "content-type": "text/plain" });
+        res.end("host-fallthrough");
+      }
+    })
+    .catch(() => {});
 });
 
 server.listen(port, "127.0.0.1", () => {
   const actual = server.address().port;
   console.log(`templates_dir: ${templatesDir ?? "(not found)"}`);
   console.log(`selection:     ${selectionPath(process.env)}`);
-  console.log(`page:          http://127.0.0.1:${actual}/plugins/dsh-plot-clone/`);
+  console.log(`page:          http://127.0.0.1:${actual}/plot-clone/`);
 });
