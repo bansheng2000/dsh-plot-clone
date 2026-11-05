@@ -275,6 +275,22 @@ python templates_index.py --match --roles category,series --ncols 2
 
 ### 4. 命中 `implemented` → 按模板的通道走
 
+用户直接点名模板（「用 xps 模板」「用 forest 那张」）时，三步走，别凭名字猜：
+
+```
+python templates_index.py --list --group system          # 1. 找 id（也可 grep -i xps 过滤）
+# 2. 读该 id 的 renderer.channel（templates/index.json）与 schema.json 的 data_contract
+# 3. 按通道出图（见下表），再 origin_verify_graph 复核
+```
+
+| `renderer.channel` | 怎么出图 |
+|---|---|
+| `origin_plot:<plot_type>` | `origin_plot(worksheet=…, plot_type=…, y_columns=[…])` |
+| `origin_plot_template:<template_id>` | `origin_plot_template(template_id=…, data={…})` |
+| `origin_labtalk` | 手写 LabTalk（如 heatmap 的 `plotm`） |
+
+侧栏「Origin 模板」页点「用这个」是同一件事的另一半：它写 `selection.json`，下一次 `--selected` 会读懂，不必再手工找 id。
+
 `renderer.channel` 是主通道，`renderer.helpers` 是辅助，例如：
 
 ```
