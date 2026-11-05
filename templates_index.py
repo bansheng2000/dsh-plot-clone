@@ -71,6 +71,11 @@ VARIANT_WHITELIST = {
 STATUSES = ("implemented", "spec-only")
 GROUPS = ("all", "favorites", "system", "user")
 
+# 数据契约：schema.json 里这 5 个字段是唯一真源，index.json 的 data_contract 必须逐字镜像它。
+CONTRACT_KEYS = ("required_roles", "optional_roles", "min_columns", "min_rows", "supported_extensions")
+# index 侧允许的补充字段（给人看的中文列名，来自 editaplot 原表；不进 schema.json）。
+CONTRACT_INDEX_ONLY = ("required_columns_zh",)
+
 RC_OK = 0
 RC_FAIL = 1
 RC_USAGE = 2
@@ -219,9 +224,51 @@ def check_index(root, env=None):
                     % (tid, base, variant, base, "/".join(sorted(allowed)))
                 )
 
+    # 6：数据契约两处必须一致 —— schema.json 是唯一真源（契约跟随模板目录走），index.json 是给 CLI/UI 读的镜像。
+    # 镜像漏字段最危险：--match 会按缺了 min_rows 的契约推荐模板，3 行数据也算"够"。
+    contract_count = 0
+    for tpl in templates:
+        tid = str(tpl.get("id") or "")
+        rel = str(tpl.get("path") or "").replace("\\", "/")
+        if not rel:
+            continue
+        sp = os.path.join(p["templates"], rel.replace("/", os.sep), "schema.json")
+        ic = tpl.get("data_contract") or {}
+        if not os.path.isfile(sp):
+            issues.append("missing schema: %s 没有 %s（数据契约必须写在模板目录里）" % (tid, rel + "/schema.json"))
+            continue
+        try:
+            schema = load_json(sp)
+        except Exception as exc:  # noqa: BLE001
+            issues.append("bad schema: %s 的 schema.json 解析失败 %s" % (tid, exc))
+            continue
+        contract_count += 1
+        missing = [k for k in CONTRACT_KEYS if k not in ic]
+        unexpected = [k for k in ic if k not in CONTRACT_KEYS and k not in CONTRACT_INDEX_ONLY]
+        mismatch = []
+        for k in CONTRACT_KEYS:
+            a, b = ic.get(k), schema.get(k)
+            if isinstance(a, list) and isinstance(b, list):
+                a, b = sorted(a), sorted(b)
+            if a != b:
+                mismatch.append("%s（index=%r schema=%r）" % (k, ic.get(k), schema.get(k)))
+        if missing or unexpected or mismatch:
+            parts = []
+            if missing:
+                parts.append("缺 " + ", ".join(missing))
+            if unexpected:
+                parts.append("多出 " + ", ".join(unexpected))
+            if mismatch:
+                parts.append("值不一致 " + "；".join(mismatch))
+            issues.append(
+                "bad contract: %s 的 index.data_contract 与模板自己的 schema.json 不一致（以 schema.json 为准）：%s"
+                % (tid, "；".join(parts))
+            )
+
     # 汇总
     lines.append("CHECK evidence   implemented=%d  spec-only=%d" % (implemented, spec_only))
     lines.append("CHECK path       system=%d" % system_count)
+    lines.append("CHECK contract   schemas=%d  keys=%d" % (contract_count, len(CONTRACT_KEYS)))
     lines.append("CHECK favorite   favorites=%d  selection=%d  dangling=%d" % (len(favorites), selection_favorites, dangling))
     lines.append("CHECK channel    channels=%d  whitelist=%d" % (channel_count, len(CHANNEL_WHITELIST)))
 
@@ -325,6 +372,27 @@ def _write(root, index, favorites=None):
             json.dump(favorites, fh, ensure_ascii=False, indent=1)
 
 
+def _schema_contract(**over):
+    contract = {
+        "required_roles": ["category", "series"],
+        "optional_roles": ["error"],
+        "min_columns": 2,
+        "min_rows": 1,
+        "supported_extensions": [".csv", ".txt", ".xls", ".xlsx"],
+    }
+    contract.update(over)
+    return contract
+
+
+def _write_schema(root, contract=None):
+    d = os.path.join(paths_for(root)["templates"], "system", "bar")
+    os.makedirs(d, exist_ok=True)
+    body = {"template_id": "bar"}
+    body.update(contract if contract is not None else _schema_contract())
+    with io.open(os.path.join(d, "schema.json"), "w", encoding="utf-8") as fh:
+        json.dump(body, fh, ensure_ascii=False, indent=2)
+
+
 def _tpl(**over):
     tpl = {
         "id": "bar",
@@ -336,6 +404,7 @@ def _tpl(**over):
         "status_evidence": {"verified_at": "2026-11-04T00:00:00+08:00", "evidence": "evidence/bar.md"},
         "gap": None,
         "renderer": {"channel": ["origin_plot:column"]},
+        "data_contract": _schema_contract(),
         "path": "system/bar",
     }
     tpl.update(over)
@@ -344,6 +413,7 @@ def _tpl(**over):
 
 def _baseline(root):
     _write(root, {"schema_version": 1, "templates": [_tpl()]}, [{"id": "bar", "added_at": "2026-11-04"}])
+    _write_schema(root)
     ev = os.path.join(paths_for(root)["templates"], "evidence")
     os.makedirs(ev, exist_ok=True)
     with io.open(os.path.join(ev, "bar.md"), "w", encoding="utf-8") as fh:
@@ -443,6 +513,23 @@ def selftest():
 
     m7()
 
+    # 变异 8：schema.json 与 index.json 的契约值不一致（改 schema 侧）
+    def m8(root):
+        _write_schema(root, _schema_contract(min_rows=2))
+    run_case("M8 schema 与 index 契约不一致", m8, "bad contract", RC_FAIL)
+
+    # 变异 9：index 镜像缺字段（删掉 min_rows）
+    def m9(root):
+        contract = _schema_contract()
+        contract.pop("min_rows")
+        _write(root, {"schema_version": 1, "templates": [_tpl(data_contract=contract)]})
+    run_case("M9 index 镜像缺 min_rows", m9, "bad contract", RC_FAIL)
+
+    # 变异 10：模板目录里没有 schema.json（契约无处可依）
+    def m10(root):
+        os.remove(os.path.join(paths_for(root)["templates"], "system", "bar", "schema.json"))
+    run_case("M10 缺 schema.json", m10, "missing schema", RC_FAIL)
+
     # 选中查询（--selected）：三个分支必须各自说清，不许含糊
     def sel_case(label, selected, expect_kw, spec_only=False):
         root = tempfile.mkdtemp(prefix="tplidx-sel-")
@@ -480,7 +567,7 @@ def selftest():
         for f in failures:
             print("  " + f)
         return 1
-    print("\nselftest ok: %d/%d（1 条基线 + 8 条变异 + 3 条 --selected 分支，全部按预期 rc 与关键词判定）" % (len(checks), len(checks)))
+    print("\nselftest ok: %d/%d（1 条基线 + 11 条变异 + 3 条 --selected 分支，全部按预期 rc 与关键词判定）" % (len(checks), len(checks)))
     return 0
 
 

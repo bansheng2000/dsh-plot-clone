@@ -50,6 +50,13 @@
      "error"
     ],
     "min_columns": 2,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "类别列",
      "一个或多个数值系列"
@@ -96,6 +103,13 @@
     ],
     "optional_roles": [],
     "min_columns": 5,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Mean",
      "Difference",
@@ -143,6 +157,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一个数值 X",
      "一个数值 Y",
@@ -192,6 +213,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Predicted probability",
      "Observed fraction",
@@ -241,6 +269,13 @@
      "edge_label"
     ],
     "min_columns": 4,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Panel",
      "Source",
@@ -285,6 +320,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "第一列 Actual class",
      "后续每列一个 Predicted class 的计数或已给比例"
@@ -329,6 +371,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "电位或电压列",
      "一个或多个电流系列"
@@ -377,6 +426,13 @@
     ],
     "optional_roles": [],
     "min_columns": 4,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Threshold",
      "一个或多个模型 Net benefit",
@@ -424,6 +480,13 @@
     ],
     "optional_roles": [],
     "min_columns": 6,
+    "min_rows": 10,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Condition ID（条件标识）",
      "Condition Position（带单位数值）",
@@ -474,6 +537,13 @@
      "reference"
     ],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "ROC：FPR + 一个或多个 TPR；PR：Recall + 一个或多个 Precision"
     ]
@@ -519,6 +589,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Temperature/温度列",
      "一个或多个 Heat Flow/热流数值系列"
@@ -564,6 +641,12 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "共享 X 列",
      "左轴数值列",
@@ -608,6 +691,13 @@
     "required_roles": [],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Nyquist：Z 实部 + Z 虚部",
      "或 Bode：频率 + 阻抗模/相位"
@@ -650,6 +740,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Time (s)",
      "Trial",
@@ -693,6 +790,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "G",
      "S",
@@ -742,6 +846,13 @@
      "reference"
     ],
     "min_columns": 4,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Label",
      "Estimate",
@@ -790,6 +901,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Wavenumber/波数列",
      "一个或多个 Absorbance/Transmittance 数值系列"
@@ -832,6 +950,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 5,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "至少四个数值列，列名写成 Category | Group"
     ]
@@ -877,6 +1002,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一列行类别",
      "至少两个数值系列"
@@ -920,6 +1052,13 @@
     ],
     "optional_roles": [],
     "min_columns": 1,
+    "min_rows": 5,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一个或多个原始数值列，每列至少 5 个观测"
     ]
@@ -964,6 +1103,13 @@
      "error"
     ],
     "min_columns": 2,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一列类别",
      "一个或多个数值系列"
@@ -1011,6 +1157,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一个数值 X 列",
      "一个或多个中心值列",
@@ -1056,6 +1209,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "电位或电压列",
      "一个或多个电流系列"
@@ -1100,6 +1260,12 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "共享 X 列",
      "每个面板一个数值列（至少 2 个）"
@@ -1147,6 +1313,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Chemical Shift/化学位移列",
      "一个或多个 Intensity/强度数值系列"
@@ -1191,6 +1364,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一个数值 Time/Visit/Condition index",
      "每个 Subject 一列数值"
@@ -1232,6 +1412,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一列类别",
      "至少两个非负数值组成列"
@@ -1271,6 +1458,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一列类别",
      "恰好一个非负数值列"
@@ -1319,6 +1513,13 @@
      "fit"
     ],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Wavelength 或 Time",
      "一个或多个 PL 数值系列"
@@ -1362,6 +1563,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 3,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "指标列",
      "至少两个非负数值系列"
@@ -1400,6 +1608,13 @@
     ],
     "optional_roles": [],
     "min_columns": 1,
+    "min_rows": 5,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一个或多个原始数值列，每列至少 5 个观测"
     ]
@@ -1439,6 +1654,13 @@
     ],
     "optional_roles": [],
     "min_columns": 1,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一个或多个原始数值列"
     ]
@@ -1482,6 +1704,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "来源 Source",
      "目标 Target",
@@ -1529,6 +1758,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一个数值 X 列",
      "一个或多个数值 Y 列"
@@ -1577,6 +1813,12 @@
      "group_contribution"
     ],
     "min_columns": null,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Feature",
      "SHAP value",
@@ -1627,6 +1869,13 @@
      "group_contribution"
     ],
     "min_columns": 3,
+    "min_rows": 6,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Feature",
      "SHAP value",
@@ -1673,6 +1922,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Time (s)",
      "Channel",
@@ -1719,6 +1975,13 @@
      "error"
     ],
     "min_columns": 3,
+    "min_rows": 1,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一列类别",
      "至少两个非负数值组成列"
@@ -1765,6 +2028,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 4,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Time (s)",
      "Frequency (Hz)",
@@ -1811,6 +2081,13 @@
     ],
     "optional_roles": [],
     "min_columns": 4,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Zreal（数值）",
      "真实第三变量与单位（数值）",
@@ -1857,6 +2134,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "连续 X 列",
      "一个或多个数值系列"
@@ -1908,6 +2192,13 @@
      "bandgap"
     ],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Wavelength",
      "一个或多个 Absorbance/Transmittance 系列"
@@ -1950,6 +2241,13 @@
     ],
     "optional_roles": [],
     "min_columns": 1,
+    "min_rows": 5,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "一个或多个原始数值列，每列至少 5 个观测"
     ]
@@ -1993,6 +2291,13 @@
     ],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "能量列",
      "一个或多个吸收信号列"
@@ -2036,6 +2341,13 @@
     "required_roles": [],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "结合能或动能列",
      "至少一个强度/计数列"
@@ -2072,6 +2384,12 @@
     "required_roles": [],
     "optional_roles": [],
     "min_columns": 2,
+    "min_rows": 20,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xlsx"
+    ],
     "required_columns_zh": []
    },
    "path": "system/xps_adaptive"
@@ -2105,6 +2423,12 @@
     "required_roles": [],
     "optional_roles": [],
     "min_columns": null,
+    "min_rows": 20,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xlsx"
+    ],
     "required_columns_zh": []
    },
    "path": "system/xps_c1s_fit"
@@ -2146,6 +2470,13 @@
     ],
     "optional_roles": [],
     "min_columns": 3,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "Binding Energy/结合能列",
      "至少两个独立实测 Intensity/Counts 数值系列"
@@ -2196,6 +2527,13 @@
      "ignored"
     ],
     "min_columns": 2,
+    "min_rows": 2,
+    "supported_extensions": [
+     ".csv",
+     ".txt",
+     ".xls",
+     ".xlsx"
+    ],
     "required_columns_zh": [
      "普通图谱：2θ 衍射角列 + 一个或多个强度列",
      "精修图：X/2θ + Obs/实测 + Calc/计算"
