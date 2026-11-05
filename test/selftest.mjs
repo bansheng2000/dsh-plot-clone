@@ -784,12 +784,12 @@ function httpSend(url, method, body, headers = {}) {
   assert.ok(main !== undefined, "主类型缺失");
   assert.equal(main.id, "dsh-plot-clone/templates");
   assert.equal(main.kind, main.id, "tab 的 kind 必须等于 id——宿主按 kind 查内容体，不等就是空白面板");
-  assert.equal(main.title(), "模板");
+  assert.equal(main.title(), "Origin 模板");
   assert.ok(Array.isArray(main.guide) && main.guide.length > 0, "主类型要有 guide（「+」菜单入口）");
   assert.ok(compat !== undefined, "缺 kind 兼容别名：旧标签实例存的是 plot-clone-templates，找不到定义就渲染 tab.unavailable");
   assert.equal(compat.id, plugin.COMPAT_ID, "别名 id 必须与主 id 不同，否则覆盖主类型");
   assert.equal("guide" in compat, false, "别名不许给 guide，否则「+」菜单会多一个入口");
-  assert.equal(compat.title(), "模板");
+  assert.equal(compat.title(), "Origin 模板");
 
   // 模拟宿主真实查找：按 tab 实例的 kind 找定义，再用 definition.id 查槽位。
   const kinds = types.map((t) => ({ id: t.id, kind: t.kind }));
@@ -1113,7 +1113,7 @@ function mount(fetchImpl, docOverride) {
 
   // 标题也要量：被压成 0 高时标题也看不见，得能和内容区分开。
   const titleText = textOf(good.plugin.PanelTitle()).join("");
-  assert.equal(titleText, "模板", `标签标题必须是「模板」，实际 ${titleText}`);
+  assert.equal(titleText, "Origin 模板", `标签标题必须是「Origin 模板」，实际 ${titleText}`);
   const titleRect = good.diagPosts.find((b) => b !== null && b.phase === "title-rect");
   assert.ok(titleRect !== undefined, `标题渲染完必须上报 title-rect，实际 ${good.diagPosts.map((b) => (b && b.phase) || "?").join(",")}`);
   assert.equal(typeof titleRect.wrap.height, "number", `title-rect 必须带数字高度，实际 ${JSON.stringify(titleRect.wrap)}`);
@@ -1352,6 +1352,16 @@ function mount(fetchImpl, docOverride) {
   assert.ok(body !== undefined, "必须注册 sidebar.right.pane.tab 内容体");
   assert.equal(body.key, hostTypes[0].kind, `内容体 key(${body.key}) 必须等于 tab.kind(${hostTypes[0].kind})，否则标签在、内容空白`);
   assert.equal(body.Component, good.plugin.TemplatesPanel, "内容体必须就是能渲染出 49 条的 TemplatesPanel");
+
+  // 只改显示名：两个 tab type 的 title 都是「Origin 模板」，id / kind 一个字都不许变
+  // （宿主按实例的 kind 查定义，改标识符 = 已存在的标签再次 unavailable）。
+  assert.equal(hostTypes.length, 2, `必须注册 2 条 tab type，实际 ${hostTypes.length}`);
+  assert.equal(hostTypes[0].id, "dsh-plot-clone/templates", `主类型 id 不许改，实际 ${hostTypes[0].id}`);
+  assert.equal(hostTypes[0].kind, "dsh-plot-clone/templates", `主类型 kind 不许改，实际 ${hostTypes[0].kind}`);
+  assert.equal(hostTypes[1].id, "dsh-plot-clone/templates-compat", `别名 id 不许改，实际 ${hostTypes[1].id}`);
+  assert.equal(hostTypes[1].kind, "plot-clone-templates", `别名 kind 不许改，实际 ${hostTypes[1].kind}`);
+  const titles = hostTypes.map((t) => (typeof t.title === "function" ? t.title() : t.title));
+  assert.deepEqual(titles, ["Origin 模板", "Origin 模板"], `两个 tab type 的显示名都必须是「Origin 模板」，实际 ${JSON.stringify(titles)}`);
 
   ok(
     "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选四档 + 「预设」下分类层 + 用户卡片无伪造预览",
