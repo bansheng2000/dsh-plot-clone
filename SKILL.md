@@ -218,7 +218,9 @@ python templates_index.py --selected
 - 有 selected 且 `[spec-only]` → 原话说明「这个图型我只有规格、渲染未对接」，给自由构图 / 近似 implemented 两个选项（同第 5 小步）。这是用户自己选的，如实告知**不算静默降级**。
 - 有 selected 但**是用户模板**（列表项 `kind:"user"`、`status:"external"`）→ `selection.json` 里带 `origin_file`（绝对路径）和 `usage`。**不要解析这个 Origin 文件、不要量测、不要建 spec**，走已有通道把样式取出来：
   1. 先 `origin_save_project(临时路径)` 存当前工程（切工程前必须存，见硬坑 9）；
-  2. `origin_labtalk(script="doc -o <origin_file>;")` 打开用户的模板/工程；
+  2. `origin_labtalk(script="doc -o <origin_file>;")` 打开用户的模板/工程（`.oth` 禁止，见硬坑 14）；
+     - **这套模板还没有缩略图、且扩展名是 `.opj`/`.opju` 时，顺手补一张**：插件进程没有 Origin 通道，只能在 agent 侧做——图页里有数据就 `origin_export(fmt="png", width=600, file_path="<origin_file 所在目录>/thumb.png")`（即 `<id>/thumb.png`）。落盘后立刻生效：`GET /plot-clone/thumb/<id>` 命中文件就返 200，**不用重建索引、不用重装**，让用户刷新侧栏即可看到图。
+     - `.otp`/`.otpu` **不生成缩略图**：打开是 0 曲线空框，画成缩略图会误导，继续显示「无缩略图 · Origin 文件」。
   3. `origin_list_graphs` 找到目标图 → `origin_inspect_graph` 读现状（颜色/线宽/轴/图例）；
   4. `origin_template_save(graph, template_name="user-<id>")` 存成样式快照；
   5. 切回本次工程后再 `origin_template_apply(graph, template_name="user-<id>")` 套用。
