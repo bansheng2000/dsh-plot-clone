@@ -21,7 +21,7 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 |---|---|
 | 「复刻 / 照着这张画 / 画成这样 / 模仿这张图 / 参考这张排版」+ 给了图 | **本 skill** |
 | 给了图，但只说「参考一下配色 / 看看风格」，没要求整体复刻 | 先问一句；不明确就**不套**复刻流程 |
-| 只说「画个图 / 出张图 / 帮我作图 / 这张数据画什么好」，**没有图** | **不要用本 skill** → `origin-plotting`：`origin_plot_plan`（逐列画像 → 角色建议 → questions → 确认 → `origin_execute_plan`），领域模板用 `origin_plot_template`（stacked_spectra / xrd_pattern / dual_y / forest / multi_panel）|
+| 只说「画个图 / 出张图 / 帮我作图 / 这张数据画什么好」，**没有图** | **不要用本 skill** → 先 `python templates_index.py --match --roles <角色> --ncols <列数>` 看 49 套里有没有现成的 `implemented` 候选（命中就走模板、省一轮；`--match` 只推荐 implemented，缺列/缺角色会写出来）；再走 `origin-plotting`：`origin_plot_plan`（逐列画像 → 角色建议 → questions → 确认 → `origin_execute_plan`），领域模板用 `origin_plot_template`（stacked_spectra / xrd_pattern / dual_y / forest / multi_panel）|
 | 领域 SOP 委派（如 dsh-xps-peakfit）但只交数据 + 版面约束、没有参考图 | 不套复刻 → 上游按 `origin-plotting` 建图；本 skill 只接「带参考图的风格对齐」|
 
 | 「用 matplotlib / Python 画就行」「随便哪个软件」 | 先按红线 6 说明：本流程只出 Origin 图；要换引擎需你明确批准 |
@@ -262,6 +262,14 @@ python templates_index.py --list
 筛选用 `--group system|user|favorites`、`--status implemented|spec-only`。
 
 收藏有两个落点，别混：页面上的收藏写 `selection.json`（`--selected` 会打 `FAVORITES` 行），`templates/favorites.json` 是随交付携带的那份。两边都当收藏看，页面优先（用户刚点的）。
+
+只有数据、还没定图型时，先让契约说话：
+
+```
+python templates_index.py --match --roles category,series --ncols 2
+```
+
+`--roles` 用列画像（`origin_plot_plan`）得出的角色名，`--ncols` 是数据列数。输出只列 `implemented`，按「可用 / 缺项」排序，缺列或缺角色会直接写 `缺：…`（例如 `缺角色 facet`、`缺 1 列（要 ≥3）`）——照着挑，缺项就别硬套。不传 `--roles` 也能列（按列数排序），适合先看一眼有什么。
 
 ### 4. 命中 `implemented` → 按模板的通道走
 

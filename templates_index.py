@@ -285,6 +285,72 @@ def check_index(root, env=None):
     return RC_OK, lines
 
 
+# ───────────────────────── 按数据契约找候选（--match） ─────────────────────────
+
+
+def match_templates(root, roles=None, ncols=None, limit=5):
+    """--match：按数据契约给候选模板打分，只推荐 implemented。
+
+    这不是自动选型：roles 是 agent 从列画像（origin_plot_plan）或用户说明里得出的角色名
+    （category / series / error / x / y …），本工具只做契约对账——缺列、缺角色都如实报出来，
+    选中谁仍由 SKILL 第 3 步决定。spec-only 一律不参与（它只有规格、渲染未对接）。
+    """
+    p = paths_for(root)
+    if not os.path.isfile(p["index"]):
+        return RC_USAGE, ["ERROR index not found: %s（模板库未生成）" % p["index"]]
+    index = load_json(p["index"])
+    templates = index.get("templates") or []
+    roles = [str(r).strip() for r in (roles or []) if str(r).strip()]
+    have = set(roles)
+    rows = []
+    skipped = 0
+    for tpl in templates:
+        if tpl.get("status") != "implemented":
+            skipped += 1
+            continue
+        c = tpl.get("data_contract") or {}
+        req = [r for r in (c.get("required_roles") or []) if isinstance(r, str)]
+        opt = [r for r in (c.get("optional_roles") or []) if isinstance(r, str)]
+        min_cols = c.get("min_columns")
+        min_rows = c.get("min_rows")
+        miss = []
+        if have:
+            miss_req = [r for r in req if r not in have]
+            if miss_req:
+                miss.append("缺角色 " + ",".join(miss_req))
+        if ncols is not None and isinstance(min_cols, int) and ncols < min_cols:
+            miss.append("缺 %d 列（要 ≥%d）" % (min_cols - ncols, min_cols))
+        both = list(dict.fromkeys(req + opt))
+        hit = [r for r in both if r in have] if have else []
+        score = int(round(100.0 * len(hit) / len(both))) if (have and both) else (100 if not have else 0)
+        rows.append({
+            "id": tpl.get("id"), "score": score, "min_cols": min_cols, "min_rows": min_rows,
+            "req": req, "opt": opt, "miss": miss,
+        })
+    # 可用优先，再按覆盖度；同一档里列少的在前（更容易满足）
+    rows.sort(key=lambda r: (1 if r["miss"] else 0, -r["score"], r["min_cols"] or 0, r["id"] or ""))
+    usable = [r for r in rows if not r["miss"]]
+    lines = [
+        "MATCH roles=%s ncols=%s implemented=%d（跳过 spec-only %d 个：只有规格、渲染未对接）"
+        % (",".join(roles) or "-", "-" if ncols is None else ncols, len(rows), skipped)
+    ]
+    if not rows:
+        lines.append("MATCH none（没有 implemented 模板）")
+        return RC_OK, lines
+    for i, r in enumerate(rows[:limit], 1):
+        tail = "缺：" + "；".join(r["miss"]) if r["miss"] else "可用"
+        lines.append(
+            "  %d. %-18s score=%3d cols≥%s rows≥%s req=%s opt=%s  %s"
+            % (i, r["id"], r["score"], r["min_cols"], r["min_rows"],
+               "/".join(r["req"]) or "-", "/".join(r["opt"]) or "-", tail)
+        )
+    lines.append(
+        "MATCH 可用 %d 个 / 共列出 %d 个（缺项=按契约不满足，别硬套；选定后用 --list 看通道）"
+        % (len(usable), min(limit, len(rows)))
+    )
+    return RC_OK, lines
+
+
 # ───────────────────────── 清单 ─────────────────────────
 
 
@@ -530,6 +596,41 @@ def selftest():
         os.remove(os.path.join(paths_for(root)["templates"], "system", "bar", "schema.json"))
     run_case("M10 缺 schema.json", m10, "missing schema", RC_FAIL)
 
+    # --match：只推 implemented、缺列缺角色要说清、spec-only 一个都不列
+    def match_cases():
+        root = tempfile.mkdtemp(prefix="tplidx-match-")
+        try:
+            spec = _tpl(id="ghost_spec", name_zh="只有规格", status="spec-only", gap="通道未对接", status_evidence=None)
+            three = _tpl(
+                id="with_facet",
+                name_zh="分面柱",
+                data_contract=_schema_contract(required_roles=["category", "series", "facet"], min_columns=3),
+            )
+            _write(root, {"schema_version": 1, "templates": [_tpl(), three, spec]})
+            rc, lines = match_templates(root, roles=["category", "series"], ncols=2)
+            text = "\n".join(lines)
+            first = lines[1].strip() if len(lines) > 1 else ""
+            cases = [
+                ("M12 --match 不列 spec-only", "跳过 spec-only 1 个" in text and "ghost_spec" not in text),
+                ("M12b --match 报缺角色", "缺角色 facet" in text),
+                ("M12c --match 报缺列", "缺 1 列" in text),
+                ("M12d --match 可用候选置顶", first.startswith("1. bar") and "可用" in first),
+            ]
+            for label, good in cases:
+                checks.append((label, rc, RC_OK, "", True, good and rc == RC_OK))
+                if not (good and rc == RC_OK):
+                    failures.append("%s: rc=%s text=%s" % (label, rc, text))
+            # 不给 roles 时也要能列（按列数排序，score 恒 100）
+            rc2, lines2 = match_templates(root, roles=None, ncols=None)
+            good2 = rc2 == RC_OK and "1. with_facet" in "\n".join(lines2) or "1. bar" in "\n".join(lines2)
+            checks.append(("M12e --match 无 roles 也能列", rc2, RC_OK, "", True, bool(good2)))
+            if not good2:
+                failures.append("M12e: rc=%s text=%s" % (rc2, "\n".join(lines2)))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    match_cases()
+
     # 选中查询（--selected）：三个分支必须各自说清，不许含糊
     def sel_case(label, selected, expect_kw, spec_only=False):
         root = tempfile.mkdtemp(prefix="tplidx-sel-")
@@ -660,9 +761,13 @@ def selected_report(root, env=None):
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="模板索引机器闸门（--check / --list / --selftest）")
-    ap.add_argument("--check", action="store_true", help="校验 index.json（5 条断言）")
+    ap = argparse.ArgumentParser(description="模板索引机器闸门（--check / --list / --match / --selftest）")
+    ap.add_argument("--check", action="store_true", help="校验 index.json（6 条断言）")
     ap.add_argument("--list", action="store_true", help="列出三类模板")
+    ap.add_argument("--match", action="store_true", help="按数据契约找候选（只推荐 implemented）")
+    ap.add_argument("--roles", default=None, help="--match 用：数据里有哪些角色，逗号分隔（category,series,error…）")
+    ap.add_argument("--ncols", type=int, default=None, help="--match 用：数据有几列（不够 min_columns 会报缺列）")
+    ap.add_argument("--limit", type=int, default=5, help="--match 最多列几个候选（默认 5）")
     ap.add_argument("--selected", action="store_true", help="只读：用户选中的模板（插件页面写的偏好）")
     ap.add_argument("--selftest", action="store_true", help="自检（变异必须真红）")
     ap.add_argument("--group", default="all", choices=GROUPS, help="--list 的分组")
@@ -680,6 +785,11 @@ def main(argv=None):
         return rc
     if args.selected:
         rc, lines = selected_report(root)
+        print("\n".join(lines))
+        return rc
+    if args.match:
+        roles = [r for r in (args.roles or "").split(",") if r.strip()]
+        rc, lines = match_templates(root, roles=roles, ncols=args.ncols, limit=args.limit)
         print("\n".join(lines))
         return rc
     if args.list:
