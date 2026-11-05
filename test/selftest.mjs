@@ -677,7 +677,15 @@ function httpSend(url, method, body, headers = {}) {
     window: {},
     document: { getElementById: () => null, head: { appendChild: () => {} }, createElement: () => ({}) },
     console: { warn: () => {}, log: () => {}, error: () => {} },
-    fetch: async () => ({ ok: false, status: 0, json: async () => null }),
+    diagPosts: [],
+    fetch: async (url, init) => {
+      try {
+        sandbox.diagPosts.push({ url: String(url), body: JSON.parse(init && init.body ? init.body : "null") });
+      } catch {
+        sandbox.diagPosts.push({ url: String(url), body: null });
+      }
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    },
   };
   sandbox.window.__ModuleLoader__ = { load: (cfg) => { sandbox.__cfg = cfg; } };
   sandbox.globalThis = sandbox;
@@ -702,11 +710,63 @@ function httpSend(url, method, body, headers = {}) {
       return () => {};
     },
   };
+  const namesSeen = [];
   plugin.apply({
     slots: slotsApi,
-    inject: (names, cb) =>
-      cb({ get: (n) => (n === "sidebarRightTabs" ? { register: (spec) => { types.push(spec); return () => {}; } } : undefined) }),
+    inject: (names, cb) => {
+      namesSeen.push(...names);
+      return cb({ get: (n) => (n === "sidebarRightTabs" ? { register: (spec) => { types.push(spec); return () => {}; } } : undefined) });
+    },
   });
+  assert.deepEqual(
+    namesSeen,
+    ["sidebarRightTabs", "sidebarRight"],
+    "必须同时注入 sidebarRightTabs 与 sidebarRight：宿主两个 provide 在同一个 effect 里，只点名一个很可能永远等不到 ready",
+  );
+  const diag = sandbox.diagPosts.map((p) => p.body).filter((b) => b !== null);
+  const phases = diag.map((b) => b.phase);
+  assert.ok(phases.includes("apply"), `apply 必须上报，实际 ${phases.join(",")}`);
+  const cbEntry = diag.find((b) => b.phase === "inject-cb");
+  assert.ok(cbEntry !== undefined, "进入 inject 回调必须留证据（phase=inject-cb）");
+  assert.equal(cbEntry.typeofTabs, "object", "inject-cb 要带 typeof tabs");
+  assert.deepEqual(cbEntry.names, ["sidebarRightTabs", "sidebarRight"]);
+  const attempts = diag.filter((b) => b.phase === "register-attempt");
+  const results = diag.filter((b) => b.phase === "register-result");
+  assert.equal(attempts.length, 2, `每条 tab type 注册前都要上报 attempt，实际 ${attempts.length}`);
+  assert.equal(results.length, 2, `每条 register 都要上报结果，实际 ${results.length}`);
+  assert.ok(results.every((r) => r.hasDisposer === true && r.returned === "function"));
+  const regEntry = diag.find((b) => b.phase === "registered");
+  assert.equal(regEntry.registered, 2, "registered 必须带成功条数 2");
+
+  // disposer 三种形态：函数 / {dispose} / undefined（拿不到也不能算没注册）
+  assert.equal(typeof plugin.disposerOf(() => {}), "function");
+  assert.equal(typeof plugin.disposerOf({ dispose() {} }), "function");
+  assert.equal(plugin.disposerOf(undefined), null);
+  assert.doesNotThrow(() => plugin.disposerOf({ dispose() {} })());
+
+  for (const shape of ["function", "object", "undefined"]) {
+    sandbox.diagPosts.length = 0;
+    let made = 0;
+    plugin.apply({
+      // 独立的静音 slots 桩：别把这三轮注册写进上面那份 slotRegs 记录里。
+      slots: { inject: (name, cb) => cb({ register: () => () => {} }), register: () => () => {} },
+      inject: (names, cb) =>
+        cb({
+          get: () => ({
+            register: () => {
+              made += 1;
+              if (shape === "function") return () => {};
+              if (shape === "object") return { dispose() {} };
+              return undefined;
+            },
+          }),
+        }),
+    });
+    const entry = sandbox.diagPosts.map((p) => p.body).find((b) => b && b.phase === "registered");
+    assert.ok(entry !== undefined, `register 返回 ${shape} 时也必须上报 registered`);
+    assert.equal(entry.registered, 2, `register 返回 ${shape} 时两条都必须算注册成功，实际 ${entry.registered}`);
+    assert.equal(made, 2, `register 返回 ${shape} 时两条都要真的调用 register，实际 ${made}`);
+  }
   assert.equal(types.length, 2, "tab type 必须注册 2 条：主类型 + kind 兼容别名（旧标签自愈）");
   const main = types.find((t) => t.kind === plugin.TAB_KIND);
   const compat = types.find((t) => t.kind === "plot-clone-templates");
@@ -748,7 +808,7 @@ function httpSend(url, method, body, headers = {}) {
   assert.equal(threw, null, `老宿主不许抛异常炸侧栏，实际：${threw && threw.message}`);
 
   ok(
-    "侧栏标签：假宿主里 apply 注册主类型 + kind 兼容别名（4 槽位），旧 kind 能解析、别名无 guide，老宿主不抛",
+    "侧栏标签：同时注入 sidebarRightTabs+sidebarRight、注册主类型+kind 别名（4 槽位）、register 返回函数/对象/undefined 都算成功、每个分支留 diag 证据，老宿主不抛",
     `types=${types.length}(${types.map((t) => t.kind).join("|")}) slots=${slotRegs.length} legacy→${legacyFound.id}`,
   );
 }

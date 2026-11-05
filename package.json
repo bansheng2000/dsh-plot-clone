@@ -47,7 +47,9 @@
       "platform": "web",
       "immediately": true,
       "inject": [
-        "slots"
+        "slots",
+        "sidebarRightTabs",
+        "sidebarRight"
       ]
     }
   },

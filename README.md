@@ -186,7 +186,7 @@ python verify_deliverable.py --selftest
 
 **可见入口是 DSH 右侧栏的「模板」标签**（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`，标题「模板」）——`lib/client.js` 手写 classic script 注册，`package.json` 用 `dsh.client = {platform:"web", immediately:true, inject:["slots"]}` 声明，无构建链。宿主太老、没有这个 slot 时：注册函数整体跳过，不抛异常、不炸侧栏；此时用下面的网页入口。
 
-路由和 MCP 自注册挂在同一个 `webServer` seam 上（`kind:"prefix"`，prefix `/plot-clone`），不新开端口。网页入口 `http://127.0.0.1:<DSH 端口>/plot-clone/` 与标签页是同一份数据、同一套路由。客户端自带诊断上报（`apply` / `registered` / `error` / `window-error` 四类打到 `/plot-clone/diag`，失败静默、`keepalive`），查「客户端到底有没有加载」就看它。
+路由和 MCP 自注册挂在同一个 `webServer` seam 上（`kind:"prefix"`，prefix `/plot-clone`），不新开端口。网页入口 `http://127.0.0.1:<DSH 端口>/plot-clone/` 与标签页是同一份数据、同一套路由。客户端自带诊断上报（`/plot-clone/diag`，失败静默 + `keepalive`）：`apply`（origin / hasInject / hasSlots / version）、`inject-cb`（注入的服务名、`typeof tabs`、injected 的键）、`no-service` / `no-register` / `no-slots` / `no-inject`、`register-attempt` / `register-result`（返回值 `typeof` 与键、是否有 disposer）、`registered`（成功条数）、`error` / `inject-error` / `slots-error`、`window-error`。客户端要等的服务是 `sidebarRightTabs` **与** `sidebarRight`（两个 provide 在宿主同一个 effect 里，`package.json` 的 `dsh.client.inject` 与 `ctx.inject` 都写全）；`tabs.register` 的返回值按函数 / `{dispose}` / `undefined` 三种都算注册成功，拿不到 disposer 只影响卸载。
 
 | 路由 | 返回 |
 |---|---|
