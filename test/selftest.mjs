@@ -1191,6 +1191,63 @@ function mount(fetchImpl, docOverride) {
   const flipped = placePreview({ x: 700, y: 300, w: 300, h: 200, vw: 800, vh: 600 });
   assert.ok(flipped.left < 700, `右侧放不下必须翻到左侧，实际 left=${flipped.left}`);
 
+  // 有图就放大、没图就不管：绑定只看这张卡最终有没有 <img>（不写 id 白名单，
+  // 用户自带预览图的模板照样生效）；图取不到必须撤绑定、换占位块，不许留裂图。
+  const brRec = { appended: [], removed: [] };
+  const brDoc = zoomDocument(brRec);
+  const br = mount(okFetch, brDoc);
+  const collectImgs = (node, out = []) => {
+    if (node === null || node === undefined || typeof node !== "object") return out;
+    if (Array.isArray(node)) { for (const c of node) collectImgs(c, out); return out; }
+    if (node.type === "img") out.push(node.props);
+    return collectImgs(node.children, out);
+  };
+  const placeholdersOf = (tree) => nodesWith(tree, "className").filter((c) => c === "pc-none").length;
+  const expectThumbs = items.filter((t) => t.thumb !== null && t.thumb !== undefined).length;
+  const brTree = await br.render();
+  const brImgs = collectImgs(brTree);
+  assert.equal(brImgs.length, expectThumbs, `只有有图的卡片才渲染 <img>：期望 ${expectThumbs}，实际 ${brImgs.length}`);
+  assert.equal(
+    brImgs.filter((p) => typeof p.onMouseEnter === "function").length,
+    expectThumbs,
+    `有 <img> 的卡片必须全部绑定悬停（data-driven，不许 id 白名单），实际 ${brImgs.filter((p) => typeof p.onMouseEnter === "function").length}`
+  );
+  assert.equal(nodesWith(brTree, "onError").length, expectThumbs, `每张缩略图都必须挂 onError（取不到图要撤绑定），实际 ${nodesWith(brTree, "onError").length}`);
+  assert.equal(placeholdersOf(brTree), items.length - expectThumbs, `无图卡片必须只有占位块（${items.length - expectThumbs} 个），实际 ${placeholdersOf(brTree)}`);
+
+  const badImg = brImgs[0];
+  const badSrc = badImg.src;
+  assert.equal(typeof badImg.onError, "function", "缩略图必须带 onError 处理（旧代码这里就是红的）");
+  badImg.onError();
+  assert.equal(brRec.appended.length, 0, "取不到图时不许建放大层（一个像素都不变）");
+  const brTree2 = await br.render();
+  const brImgs2 = collectImgs(brTree2);
+  assert.equal(brImgs2.length, expectThumbs - 1, `坏图必须从 <img> 撤成占位块：期望 ${expectThumbs - 1}，实际 ${brImgs2.length}`);
+  assert.equal(
+    brImgs2.filter((p) => typeof p.onMouseEnter === "function").length,
+    expectThumbs - 1,
+    `坏图那张卡必须撤掉悬停绑定，实际还有 ${brImgs2.filter((p) => typeof p.onMouseEnter === "function").length}`
+  );
+  assert.equal(placeholdersOf(brTree2), items.length - expectThumbs + 1, `坏图必须落成占位块，实际 ${placeholdersOf(brTree2)}`);
+  assert.equal(nodesWith(brTree2, "src").includes(badSrc), false, `坏图的 src 不许留在渲染树里，实际还在 ${badSrc}`);
+  assert.ok(textOf(brTree2).join(" ").includes("缩略图加载失败"), "坏图卡片必须给出「缩略图加载失败」占位文案");
+  await new Promise((r) => setTimeout(r, 250));
+  assert.equal(brRec.appended.length, 0, "坏图之后 250 ms 也不许出层（绑定真的撤了）");
+
+  const goodImg2 = brImgs2.find((p) => typeof p.onMouseEnter === "function");
+  goodImg2.onMouseEnter({ clientX: 300, clientY: 200 });
+  await new Promise((r) => setTimeout(r, 220));
+  const layerErrLayer = brRec.appended[0];
+  assert.ok(layerErrLayer !== undefined, "正常图必须照常出层（只有坏图不放大）");
+  assert.equal(
+    typeof layerErrLayer.children[0].onerror,
+    "function",
+    "放大层里的 img 必须挂 onerror（图取不到要立刻收层，不许显示裂图）"
+  );
+  layerErrLayer.children[0].onerror();
+  assert.equal(brRec.removed.includes(layerErrLayer), true, "放大层里的图取不到时必须立刻收层，不许显示裂图");
+  assert.equal(brDoc.body.children.length, 0, `收层后 body 上不许残留，实际 ${brDoc.body.children.length}`);
+
   // 筛选三档按「来源」：全部 / 预设 / 收藏（status 只做徽标，不许占筛选位）。
   const allNodes = (node, out = []) => {
     if (node === null || node === undefined || typeof node !== "object") return out;
@@ -1371,6 +1428,10 @@ function mount(fetchImpl, docOverride) {
     "缩略图悬停放大：层挂 body + 150 ms 延迟 + 离开即删 + 点击钉住 + 位置夹边",
     `bound=${zoomNodes.length}/${thumbCards} body=${hoverOnBody} src=${zoomImg.src} delayed=${hoverRemoved} pin=${pinLayer.getAttribute("data-pc-zoom")} place=${placeCases.length}cases`,
   );
+  ok(
+    "有图才放大、没图不管：绑定按 <img> 存在性（data-driven）+ 取不到图撤绑定换占位块 + 放大层坏图立刻收层",
+    `imgs=${brImgs.length}/${expectThumbs} bound=${brImgs.filter((p) => typeof p.onMouseEnter === "function").length}/${expectThumbs} 无图占位=${placeholdersOf(brTree)} broken→img=${brImgs2.length} src残留=${nodesWith(brTree2, "src").includes(badSrc)} layerErr收层=${brRec.removed.includes(layerErrLayer)}`,
+  );
 
   if (process.env.HTML_PROBE === "1") {
     const html = htmlOf(goodTree);
@@ -1380,4 +1441,4 @@ function mount(fetchImpl, docOverride) {
   }
 }
 
-console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档 / 预设分类层 / 缩略图放大）`);
+console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档 / 预设分类层 / 缩略图放大 / 坏图不放大）`);
