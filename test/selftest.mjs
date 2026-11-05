@@ -656,11 +656,11 @@ function httpSend(url, method, body, headers = {}) {
   assert.match(src, /phase: "panel-error"/, "面板必须有渲染兜底上报（panel-error）");
   assert.match(src, /whiteSpace: "pre-wrap"/, "渲染兜底必须把 stack 显示出来（pre-wrap），不许白屏无痕迹");
   assert.match(src, /模板 · 加载中/, "顶层必须始终渲染一行标题（加载中 / 共 N 个）");
-  const visibleFallback = 'minHeight: "420px", height: "auto", background: "#20242c"';
-  assert.ok(
-    src.includes(visibleFallback),
-    `强可见兜底：.pc-wrap 的内联样式必须是 ${visibleFallback}（否则外层高度塌陷时整页不可见）`,
-  );
+  // 诊断期的强可见兜底（深底 + minHeight）已撤：面板靠 .pc-wrap 的 height:100% 撑满
+  // 宿主给的高度链，临时色值和 minHeight 不许留在成品里。
+  assert.equal(src.includes("#20242c"), false, "临时诊断色 #20242c 必须撤掉，改回只靠 CSS 的干净写法");
+  assert.equal(src.includes("minHeight: \"420px\""), false, "临时诊断 minHeight 必须撤掉");
+  assert.match(src, /\.pc-wrap\{[^}]*height:100%/, ".pc-wrap 必须靠 height:100% 撑满宿主给的高度链");
 
   const pkg = JSON.parse(fsMod.readFileSync(join(rootDir, "package.json"), "utf8"));
   assert.equal(pkg.exports["./client"], "./lib/client.js", "exports 必须暴露 ./client");
@@ -911,6 +911,17 @@ function mount(fetchImpl) {
     vmMod.createContext(sandbox);
     vmMod.runInContext(src, sandbox, { filename: "client.js" });
 
+    /**
+     * 真 createElement 语义：(type, props, ...children) → children 合进 props.children。
+     * 第三个参数传数组时（jsx(type, props, [a, b])）唯一的那个 child 就是该数组本身，
+     * 与 React 的 `childrenLength === 1 → props.children = arguments[2]` 一致。
+     */
+    const createElement = (type, props, ...children) => {
+      const p = { ...(props ?? {}) };
+      const kids = children.length === 0 ? p.children : children.length === 1 ? children[0] : children;
+      if (kids !== undefined) p.children = kids;
+      return { type, props: p, children: kids };
+    };
     const react = {
       useState(init) {
         const i = idx++;
@@ -923,10 +934,17 @@ function mount(fetchImpl) {
       useRef(v) { const i = idx++; if (!(i in hooks)) hooks[i] = { current: v }; return hooks[i]; },
       useMemo(fn) { idx++; return fn(); },
       useEffect(fn) { idx++; effects.push(fn); },
+      createElement,
     };
-    const plugin = sandbox.__cfg.factory((name) =>
-      name === "react" ? react : { jsx: (type, props, children) => ({ type, props: props ?? {}, children }) }
-    );
+    /**
+     * 真 jsx-runtime 语义：第三个参数是 **key**，不是 children；children 只能来自
+     * props.children。上一版桩把第三参数当 children，掩盖了「jsx(type, props, 子元素)
+     * 的子元素全被丢掉、innerHTML 长度为 0」的真 bug —— 这里必须按真语义钉死。
+     */
+    const jsxRuntime = {
+      jsx: (type, props, key) => ({ type, props: props ?? {}, children: (props ?? {}).children, key }),
+    };
+    const plugin = sandbox.__cfg.factory((name) => (name === "react" ? react : jsxRuntime));
 
     const render = async () => {
       idx = 0;
@@ -965,6 +983,19 @@ function mount(fetchImpl) {
     nodesWith(node.children, prop, out);
     return out;
   };
+  /** 把渲染树序列化成 HTML 字符串：数和真实 DOM 一致的属性出现次数（不展开事件/样式对象）。 */
+  const htmlOf = (node) => {
+    if (node === null || node === undefined || node === false || node === true) return "";
+    if (Array.isArray(node)) return node.map(htmlOf).join("");
+    if (typeof node !== "object") return String(node);
+    const props = node.props ?? {};
+    const attrs = Object.entries(props)
+      .filter(([k, v]) => k !== "children" && k !== "key" && v !== null && v !== undefined && typeof v !== "object" && typeof v !== "function")
+      .map(([k, v]) => ` ${k === "className" ? "class" : k}="${String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"`)
+      .join("");
+    return `<${node.type}${attrs}>${htmlOf(props.children !== undefined ? props.children : node.children)}</${node.type}>`;
+  };
+  const countAttr = (tree, attr) => htmlOf(tree).split(`${attr}=`).length - 1;
 
   const items = Array.from({ length: 49 }, (_, i) => ({
     id: `tpl-${i}`,
@@ -989,8 +1020,13 @@ function mount(fetchImpl) {
   const badFetch = async () => ({ ok: false, status: 404, json: async () => { throw new Error("no body"); } });
 
   const good = mount(okFetch);
-  const goodText = textOf(await good.render()).join(" ");
-  const cards = nodesWith(await good.render(), "data-template-id");
+  const goodTree = await good.render();
+  // 先数渲染出来的 HTML：children 真进了树，data-template-id 才会出现 49 次。
+  // （用 jsx-runtime 语义把 children 当 key 丢掉时，这里必须报 0。）
+  const htmlCards = countAttr(goodTree, "data-template-id");
+  assert.equal(htmlCards, 49, `渲染出的 HTML 里必须能数到 49 个 data-template-id，实际 ${htmlCards}`);
+  const goodText = textOf(goodTree).join(" ");
+  const cards = nodesWith(goodTree, "data-template-id");
   assert.ok(goodText.includes("全部 49"), `渲染出的标签数必须是 49，实际文本：${goodText.slice(0, 120)}`);
   assert.ok(goodText.includes("共 49 个模板（预设 49 · 用户 0）"), `页脚张数必须是 49，实际文本：${goodText.slice(-90)}`);
   assert.equal(cards.length, 49, `卡片数必须是 49，实际 ${cards.length}`);
@@ -1198,8 +1234,16 @@ function mount(fetchImpl) {
 
   ok(
     "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选四档 + 「预设」下分类层 + 用户卡片无伪造预览",
-    `cards=${cards.length} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fUser.cards}/${fFav.cards} 用户空态=${fUser.text.includes("还没有你自己的模板")} 用户卡片=${mixUser.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind} diag=${goodPhases.includes("panel-enter")}/${goodPhases.includes("panel-ready")}`,
+    `cards=${cards.length} html=${htmlCards} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fUser.cards}/${fFav.cards} 用户空态=${fUser.text.includes("还没有你自己的模板")} 用户卡片=${mixUser.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind} diag=${goodPhases.includes("panel-enter")}/${goodPhases.includes("panel-ready")}`,
   );
+  // 纯 node 取证：把真渲染出来的 HTML 打出来（HTML_PROBE=1 时），用于人工核对
+  // 「children 到底有没有进树」，不靠读组件源码。
+  if (process.env.HTML_PROBE === "1") {
+    const html = htmlOf(goodTree);
+    console.log(`\n[HTML_PROBE] data-template-id count = ${htmlCards}`);
+    console.log(`[HTML_PROBE] pc-card count = ${html.split('class="pc-card"').length - 1}`);
+    console.log(`[HTML_PROBE] html head = ${html.slice(0, 160)}`);
+  }
 }
 
 console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档 / 预设分类层）`);
