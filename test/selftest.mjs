@@ -882,17 +882,67 @@ function layoutDocument() {
   return doc;
 }
 
-function mount(fetchImpl) {
+/** 放大层专用假 DOM：记录 body 上的 appendChild/removeChild，并让节点带 style/attrs/onload。 */
+function zoomDocument(record) {
+  const makeEl = (tagName) => {
+    const el = {
+      tagName,
+      children: [],
+      style: {},
+      attrs: {},
+      parentNode: null,
+      setAttribute(k, v) { el.attrs[k] = String(v); },
+      getAttribute(k) { return el.attrs[k] ?? null; },
+      appendChild(child) {
+        child.parentNode = el;
+        el.children.push(child);
+        if (el === body) record.appended.push(child);
+        return child;
+      },
+      removeChild(child) {
+        child.parentNode = null;
+        el.children = el.children.filter((c) => c !== child);
+        if (el === body) record.removed.push(child);
+        return child;
+      },
+      remove() { if (el.parentNode !== null) el.parentNode.removeChild(el); },
+      addEventListener() {},
+      removeEventListener() {},
+      getBoundingClientRect: () => ({ x: 16, y: 96, width: 126, height: 160 }),
+      querySelector: () => null,
+      querySelectorAll: () => [],
+    };
+    return el;
+  };
+  const body = makeEl("body");
+  const doc = {
+    body,
+    head: makeEl("head"),
+    createElement: (tag) => makeEl(tag),
+    getElementById: () => null,
+    querySelector: () => null,
+  };
+  return doc;
+}
+
+function mount(fetchImpl, docOverride) {
     const hooks = [];
     const effects = [];
     let idx = 0;
     let dirty = false;
     let effectsDone = false;
     const sandbox = {
-      window: { getComputedStyle: () => ({ display: "flex", height: "520px", overflow: "hidden" }) },
-      document: layoutDocument(),
+      window: {
+        getComputedStyle: () => ({ display: "flex", height: "520px", overflow: "hidden" }),
+        innerWidth: 1200,
+        innerHeight: 800,
+        addEventListener() {},
+        removeEventListener() {},
+      },
+      document: docOverride ?? layoutDocument(),
       requestAnimationFrame: (cb) => cb(),
       setTimeout: (fn, ms) => setTimeout(fn, ms),
+      clearTimeout: (id) => clearTimeout(id),
       console: { warn() {}, log() {}, error() {} },
       diagPosts: [],
       fetch: async (url, init) => {
@@ -1001,9 +1051,9 @@ function mount(fetchImpl) {
     id: `tpl-${i}`,
     name: `模板 ${i}`,
     category: i % 2 === 0 ? "general" : "spectroscopy",
-    status: i < 9 ? "implemented" : "spec-only",
+    status: i < 27 ? "implemented" : "spec-only",
     channels: ["origin_plot:line"],
-    thumb: i < 9 ? `/plot-clone/thumb/tpl-${i}` : null,
+    thumb: i < 27 ? `/plot-clone/thumb/tpl-${i}` : null,
   }));
   const okFetch = async (url, init) => ({
     ok: true,
@@ -1069,6 +1119,77 @@ function mount(fetchImpl) {
   assert.equal(typeof titleRect.wrap.height, "number", `title-rect 必须带数字高度，实际 ${JSON.stringify(titleRect.wrap)}`);
   assert.equal(readyEntry.count, 49, `panel-ready 必须带张数 49，实际 ${readyEntry.count}`);
   assert.equal(readyEntry.error, null, "正常加载时 panel-ready.error 必须是 null");
+
+  // 缩略图悬停放大：层必须挂 document.body（不留在 React 子树里），150 ms 后才出、离开即删。
+  const zoomRec = { appended: [], removed: [] };
+  const zoomDoc = zoomDocument(zoomRec);
+  const zoom = mount(okFetch, zoomDoc);
+  const zoomTree = await zoom.render();
+  const zoomNodes = [];
+  const collectZoom = (n) => {
+    if (n === null || n === undefined || typeof n !== "object") return;
+    if (Array.isArray(n)) { for (const c of n) collectZoom(c); return; }
+    if (n.props && typeof n.props.onMouseEnter === "function") zoomNodes.push(n.props);
+    collectZoom(n.children);
+  };
+  collectZoom(zoomTree);
+  const thumbCards = items.filter((t) => t.thumb !== null && t.thumb !== undefined).length;
+  assert.equal(thumbCards, 27, `fixture 必须按真实数据 27 个实拍缩略图，实际 ${thumbCards}`);
+  assert.equal(zoomNodes.length, thumbCards, `有缩略图的卡片必须正好绑定悬停（${thumbCards} 个），实际 ${zoomNodes.length}`);
+  assert.equal(zoomRec.appended.length, 0, "还没悬停时不许建放大层");
+
+  const zoomProps = zoomNodes[0];
+  zoomProps.onMouseEnter({ clientX: 300, clientY: 200 });
+  assert.equal(zoomRec.appended.length, 0, "mouseenter 后 150 ms 内不许出层（快速划过不该闪）");
+  await new Promise((r) => setTimeout(r, 220));
+  const hoverLayer = zoomRec.appended[0];
+  assert.ok(hoverLayer !== undefined, `mouseenter 150 ms 后必须把放大层挂到 body，实际 ${zoomRec.appended.length}`);
+  const hoverOnBody = hoverLayer.parentNode === zoomDoc.body;
+  assert.equal(hoverOnBody, true, "放大层必须挂在 document.body 上，不许留在面板子树里");
+  const zoomImg = hoverLayer.children[0];
+  assert.equal(zoomImg.tagName, "img", `放大层里必须是一个 img，实际 ${zoomImg.tagName}`);
+  assert.equal(zoomImg.src, "/plot-clone/thumb/tpl-0", `放大图必须复用缩略图 URL（缓存命中），实际 ${zoomImg.src}`);
+  assert.ok(Number.parseFloat(hoverLayer.style.left) >= 8, `层必须在视口内（left=${hoverLayer.style.left}）`);
+  assert.ok(Number.parseFloat(hoverLayer.style.top) >= 8, `层必须在视口内（top=${hoverLayer.style.top}）`);
+  assert.ok(Number.parseFloat(hoverLayer.style.width) > 0, `层必须有宽度，实际 ${hoverLayer.style.width}`);
+
+  zoomProps.onMouseLeave();
+  const hoverRemoved = zoomRec.removed.includes(hoverLayer);
+  assert.equal(hoverRemoved, true, "mouseleave 必须把放大层从 body 上删掉");
+  assert.equal(zoomRec.appended.length, 1, "离开后不许补建层");
+  assert.equal(zoomDoc.body.children.length, 0, `body 上不许残留空层，实际 ${zoomDoc.body.children.length}`);
+
+  // 点击钉住：全屏遮罩 + 同一张图，点遮罩关闭。
+  zoomProps.onClick({ preventDefault() {} });
+  assert.equal(zoomRec.appended.length, 2, "点缩略图必须钉住一层遮罩");
+  const pinLayer = zoomRec.appended[1];
+  assert.equal(pinLayer.getAttribute("data-pc-zoom"), "pin", `钉住层必须标 pin，实际 ${pinLayer.getAttribute("data-pc-zoom")}`);
+  assert.equal(pinLayer.children[0].src, "/plot-clone/thumb/tpl-0", "钉住层必须是同一张图");
+  pinLayer.onclick();
+  assert.equal(zoomDoc.body.children.length, 0, "点遮罩必须关掉钉住层");
+
+  // placePreview 纯函数：右/左/上/下四档越界都夹在 8px 边距内。
+  const placePreview = zoom.plugin.placePreview;
+  assert.equal(typeof placePreview, "function", "必须导出 placePreview 纯函数（位置夹边逻辑要能单测）");
+  const placeCases = [
+    { name: "右越界", box: { x: 700, y: 300, w: 300, h: 200, vw: 800, vh: 600 } },
+    { name: "左越界（翻转后为负）", box: { x: 200, y: 300, w: 300, h: 100, vw: 400, vh: 300 } },
+    { name: "上越界", box: { x: 100, y: 100, w: 200, h: 400, vw: 800, vh: 600 } },
+    { name: "下越界", box: { x: 100, y: 590, w: 200, h: 200, vw: 800, vh: 600 } },
+  ];
+  for (const c of placeCases) {
+    const r = placePreview(c.box);
+    assert.ok(
+      r.left >= 8 && r.left + c.box.w <= c.box.vw - 8,
+      `${c.name}：横向必须留在视口内（left=${r.left} w=${c.box.w} vw=${c.box.vw}）`,
+    );
+    assert.ok(
+      r.top >= 8 && r.top + c.box.h <= c.box.vh - 8,
+      `${c.name}：纵向必须留在视口内（top=${r.top} h=${c.box.h} vh=${c.box.vh}）`,
+    );
+  }
+  const flipped = placePreview({ x: 700, y: 300, w: 300, h: 200, vw: 800, vh: 600 });
+  assert.ok(flipped.left < 700, `右侧放不下必须翻到左侧，实际 left=${flipped.left}`);
 
   // 筛选三档按「来源」：全部 / 预设 / 收藏（status 只做徽标，不许占筛选位）。
   const allNodes = (node, out = []) => {
@@ -1236,8 +1357,11 @@ function mount(fetchImpl) {
     "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选四档 + 「预设」下分类层 + 用户卡片无伪造预览",
     `cards=${cards.length} html=${htmlCards} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fUser.cards}/${fFav.cards} 用户空态=${fUser.text.includes("还没有你自己的模板")} 用户卡片=${mixUser.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind} diag=${goodPhases.includes("panel-enter")}/${goodPhases.includes("panel-ready")}`,
   );
-  // 纯 node 取证：把真渲染出来的 HTML 打出来（HTML_PROBE=1 时），用于人工核对
-  // 「children 到底有没有进树」，不靠读组件源码。
+  ok(
+    "缩略图悬停放大：层挂 body + 150 ms 延迟 + 离开即删 + 点击钉住 + 位置夹边",
+    `bound=${zoomNodes.length}/${thumbCards} body=${hoverOnBody} src=${zoomImg.src} delayed=${hoverRemoved} pin=${pinLayer.getAttribute("data-pc-zoom")} place=${placeCases.length}cases`,
+  );
+
   if (process.env.HTML_PROBE === "1") {
     const html = htmlOf(goodTree);
     console.log(`\n[HTML_PROBE] data-template-id count = ${htmlCards}`);
@@ -1246,4 +1370,4 @@ function mount(fetchImpl) {
   }
 }
 
-console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档 / 预设分类层）`);
+console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档 / 预设分类层 / 缩略图放大）`);
