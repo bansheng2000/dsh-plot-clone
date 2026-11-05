@@ -413,4 +413,98 @@ function httpGet(url, method = "GET", body) {
   });
 }
 
-console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由）`);
+/* ───────────── 15. 侧栏标签客户端：文件与 package.json 契约 ───────────── */
+{
+  const fsMod = await import("node:fs");
+  const clientPath = join(rootDir, "lib", "client.js");
+  assert.equal(fsMod.existsSync(clientPath), true, "lib/client.js 必须存在");
+  const src = fsMod.readFileSync(clientPath, "utf8");
+  assert.ok(src.length > 2000, `client.js 太小：${src.length}B`);
+  // classic script：出现 import/export 声明，ModuleLoader 载入即语法错误
+  assert.equal(/^\s*(import|export)\s/m.test(src), false, "client.js 必须是 classic script，不许 import/export 语句");
+  assert.match(src, /window\.__ModuleLoader__\.load\(/);
+  assert.match(src, /"sidebar\.right\.pane\.tab"/, "必须注册到 sidebar.right.pane.tab");
+  assert.match(src, /sidebarRightTabs/, "必须通过 sidebarRightTabs 注册 tab type");
+  assert.match(src, /"dsh-plot-clone\/templates"/, "TAB_ID 必须钉死");
+  assert.match(src, /typeof tabs\.register !== "function"/, "拿不到 slot 时必须安全跳过而不是抛异常");
+  assert.match(src, /无实拍/, "spec-only 卡片必须有「无实拍」占位文案");
+
+  const pkg = JSON.parse(fsMod.readFileSync(join(rootDir, "package.json"), "utf8"));
+  assert.equal(pkg.exports["./client"], "./lib/client.js", "exports 必须暴露 ./client");
+  assert.equal(pkg.dsh.client.platform, "web");
+  assert.equal(pkg.dsh.client.immediately, true);
+  assert.ok(Array.isArray(pkg.dsh.client.inject) && pkg.dsh.client.inject.length > 0, "dsh.client.inject 不许空");
+  assert.ok(pkg.files.includes("lib/client.js"), "files 漏了 lib/client.js：pnpm 装完会缺文件，侧栏标签静默消失");
+  assert.ok(pkg.files.includes("lib/templates.js") && pkg.files.includes("lib/page.js"), "files 漏了 templates/page");
+
+  ok(
+    "侧栏标签客户端：文件 + dsh.client + files",
+    `client=${src.length}B exports[./client]=${pkg.exports["./client"]} inject=${pkg.dsh.client.inject.join(",")}`,
+  );
+}
+
+/* ───────────── 16. 侧栏标签：在假宿主里真跑 apply ───────────── */
+{
+  const fsMod = await import("node:fs");
+  const vmMod = await import("node:vm");
+  const src = fsMod.readFileSync(join(rootDir, "lib", "client.js"), "utf8");
+  const sandbox = {
+    window: {},
+    document: { getElementById: () => null, head: { appendChild: () => {} }, createElement: () => ({}) },
+    console: { warn: () => {}, log: () => {}, error: () => {} },
+    fetch: async () => ({ ok: false, status: 0, json: async () => null }),
+  };
+  sandbox.window.__ModuleLoader__ = { load: (cfg) => { sandbox.__cfg = cfg; } };
+  sandbox.globalThis = sandbox;
+  vmMod.createContext(sandbox);
+  vmMod.runInContext(src, sandbox, { filename: "client.js" });
+
+  const cfg = sandbox.__cfg;
+  assert.ok(cfg !== undefined, "client.js 必须调用 window.__ModuleLoader__.load");
+  assert.equal(cfg.id, "dsh-plot-clone");
+  const plugin = cfg.factory((name) =>
+    name === "react" ? { useEffect() {}, useMemo() {}, useRef() {}, useState() {} } : { jsx: () => null }
+  );
+  assert.equal(typeof plugin.apply, "function", "插件对象必须有 apply");
+
+  // 现代宿主：tab type 1 条 + 内容/标题 2 条
+  const types = [];
+  const slotRegs = [];
+  const slotsApi = {
+    inject: (name, cb) => cb(slotsApi),
+    register: (spec) => {
+      slotRegs.push({ name: spec.name, key: spec.key });
+      return () => {};
+    },
+  };
+  plugin.apply({
+    slots: slotsApi,
+    inject: (names, cb) =>
+      cb({ get: (n) => (n === "sidebarRightTabs" ? { register: (spec) => { types.push(spec); return () => {}; } } : undefined) }),
+  });
+  assert.equal(types.length, 1, "tab type 只能注册 1 条");
+  assert.equal(types[0].id, "dsh-plot-clone/templates");
+  assert.equal(types[0].kind, "plot-clone-templates");
+  assert.equal(types[0].title(), "模板");
+  assert.deepEqual(slotRegs.map((r) => r.name), ["sidebar.right.pane.tab", "sidebar.right.pane.tab.title"]);
+  assert.ok(slotRegs.every((r) => r.key === "dsh-plot-clone/templates" && r.key === types[0].id), "slot key 必须等于 tab id");
+
+  // 老宿主：service / slots 各种缺失都不许抛
+  let threw = null;
+  try {
+    plugin.apply({ inject: (names, cb) => cb({ get: () => undefined }) });
+    plugin.apply({ slots: undefined, inject: (names, cb) => cb({ get: () => undefined }) });
+    plugin.apply({});
+    plugin.apply(null);
+  } catch (error) {
+    threw = error;
+  }
+  assert.equal(threw, null, `老宿主不许抛异常炸侧栏，实际：${threw && threw.message}`);
+
+  ok(
+    "侧栏标签：假宿主里 apply 注册 tab type + 2 slots，老宿主不抛",
+    `types=${types.length} slots=${slotRegs.length} key=${types[0].id}`,
+  );
+}
+
+console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 侧栏标签契约 / 侧栏 apply）`);

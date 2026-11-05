@@ -201,7 +201,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 
 ### 1. 用户选过模板，就先按它做（手动选择优先于自动匹配）
 
-插件带一个模板选择页：DSH 里打开 `http://127.0.0.1:<DSH 端口>/plugins/dsh-plot-clone/`（侧栏打开即可，页面无外部依赖）。用户点「用这个」写的是：
+插件在 DSH **右侧栏**加了一个「模板」标签（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`）：点开就是模板选择器，搜索 / 按 `implemented｜spec-only` 过滤 / ★ 收藏 / 「用这个」。同一个页面也能直接开：`http://127.0.0.1:<DSH 端口>/plugins/dsh-plot-clone/`（无外部依赖，老版本宿主没这个标签时用它）。用户点「用这个」写的是：
 
 ```
 %USERPROFILE%\.dsh\dsh-plot-clone\selection.json      # 设了 DSH_HOME 则在它下面

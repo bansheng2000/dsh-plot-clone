@@ -6,12 +6,14 @@
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./client": "./lib/client.js"
   },
   "files": [
     "lib/index.js",
     "lib/templates.js",
     "lib/page.js",
+    "lib/client.js",
     "lib/bootstrap.py",
     "cordis.patch.yml",
     "README.md",
@@ -38,6 +40,13 @@
     },
     "engines": {
       "dsh": ">=0.1.7-rc.1"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "slots"
+      ]
     }
   },
   "scripts": {
