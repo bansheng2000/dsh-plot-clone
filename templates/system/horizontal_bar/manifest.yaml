@@ -14,7 +14,7 @@ source:
   path: runtime/templates/horizontal_bar
   commit: d93cd319c789d078da55acd75d120209b9288c83
 status_evidence: null
-gap: "尚未实跑：预计 origin_plot:bar 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）"
+gap: "origin_plot:bar 只消费 y_columns[0]（与 grouped_box 同根因：引擎 box/bar 分支只取首列），2 个数值系列出图仍是 1 个系列；本轮允许通道内没有多系列横向分组通道。已出图 templates/evidence/failed/horizontal_bar.png（仅 1 系列）作通道证据。"
 renderer:
   channel:
     - "origin_plot:bar"

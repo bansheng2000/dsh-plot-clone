@@ -1,0 +1,36 @@
+# time_frequency — 时间–频率物理矩阵
+
+- **状态：implemented**
+- 来源：editaplot `runtime/templates/time_frequency/`（Apache-2.0，契约按本 skill 字段重写）
+- 实测日期：2026-11-05
+- 实测环境：Origin 10.2502（2025b），dsh-origin MCP，`origin_status` → `connected: true`、`session_mode: attach`
+
+## 实测调用
+
+```
+origin_matrix_write(matrix_name="tf_power", data={"z": 16×14}) -> origin_matrix_plot(matrix="[M001]MSheet1", plot_type="contour_fill", width=1800)
+```
+
+## 对象层反读
+
+图 `Graph21`；`series_count` = **1（矩阵 16×14）**；`origin_verify_graph` 10 项检查全 pass（graph_exists / window_context / layer_count / series_count / axis_x_title / axis_y_title / x_title_font_pt / y_title_font_pt / layer0_geometry / legend）。
+
+## 导出
+
+- PNG：`templates/evidence/time_frequency.png`，**1800 × 1276 px**，46090 bytes（通道 `save_fig(expGraph)`）
+- PDF：`.probe/deliver/time_frequency.pdf`，202275 bytes（不放仓库；交付时按需重导）
+- OPJU：`.probe/deliver/time_frequency.opju` —— **不是单模板工程**，是本次 20 个模板共用的工程快照（`.probe/deliver/all-templates.opju`，498988 bytes）按 id 复制，内容含全部 20 页
+- 校验：`verify_deliverable.py templates/evidence/time_frequency.png .probe/deliver/time_frequency.pdf .probe/deliver/time_frequency.opju --min-width 1800` → **rc=0**，6 项全 PASS（file×3 / basename / width 1800 px / watermark `mask 0 px`）
+
+## 数据
+
+合成样例：4–60 Hz × 0–20 s 功率矩阵，12 Hz 附近能量带（`.probe/data/tf_small.json` 为 16×14 抽样）。**合成样例，不是实验数据**，只用于验证通道能画出该图型，不得当示例结果引用。
+
+## 能否支撑这个模板
+
+能支撑：频段 × 时间功率矩阵的填色等高图（contour_fill），色阶随功率变化。
+
+## 已知差量
+
+- 坐标轴没有频率/时间单位（矩阵本身不带轴元数据），需 `origin_edit_axis` 补标签
+- 矩阵是按 16×14 抽样写入的（原始 30×40），证据图不是全分辨率矩阵

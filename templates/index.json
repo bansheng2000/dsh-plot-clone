@@ -67,7 +67,7 @@
    "visibility": "public",
    "status": "spec-only",
    "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:scatter 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "gap": "散点（Mean vs Difference）可画，但模板数据契约要求 5 列（mean/difference/bias/loa_lower/loa_upper）并在图上画出偏倚线与 ±1.96 SD 一致性界限；本轮允许通道只有 scatter，参考线通道（origin_add_line）不在清单内。已出图 templates/evidence/failed/bland_altman.png（仅散点）作通道证据。",
    "renderer": {
     "channel": [
      "origin_plot:scatter"
@@ -159,9 +159,12 @@
    "category": "medical-ai/reliability",
    "family": "medical_ai_evidence",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:scatter 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/calibration_curve.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:scatter"
@@ -297,9 +300,12 @@
    "category": "electrochemistry/cv",
    "family": "electrochemistry",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/cv.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -338,9 +344,12 @@
    "category": "medical-ai/clinical-utility",
    "family": "medical_ai_evidence",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/decision_curve.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -434,9 +443,12 @@
    "category": "medical-ai/performance",
    "family": "medical_ai_evidence",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/diagnostic_curve.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -476,9 +488,12 @@
    "category": "thermal-analysis/dsc",
    "family": "thermal_analysis",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/dsc.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -565,9 +580,12 @@
    "category": "electrochemistry/eis",
    "family": "electrochemistry",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:scatter 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/eis.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:scatter"
@@ -741,9 +759,12 @@
    "category": "spectroscopy/infrared",
    "family": "spectroscopy",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/ftir.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -871,9 +892,12 @@
    "category": "general/distribution",
    "family": "general_distribution",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:histogram 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/histogram.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:histogram"
@@ -912,7 +936,7 @@
    "visibility": "public",
    "status": "spec-only",
    "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:bar 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "gap": "origin_plot:bar 只消费 y_columns[0]（与 grouped_box 同根因：引擎 box/bar 分支只取首列），2 个数值系列出图仍是 1 个系列；本轮允许通道内没有多系列横向分组通道。已出图 templates/evidence/failed/horizontal_bar.png（仅 1 系列）作通道证据。",
    "renderer": {
     "channel": [
      "origin_plot:bar"
@@ -1003,9 +1027,12 @@
    "category": "electrochemistry/lsv",
    "family": "electrochemistry",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/lsv.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -1088,9 +1115,12 @@
    "category": "spectroscopy/nmr",
    "family": "spectroscopy",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/nmr.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -1132,9 +1162,12 @@
    "category": "medical-ai/paired",
    "family": "medical_ai_evidence",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/paired_trajectory.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -1253,9 +1286,12 @@
    "category": "spectroscopy/photoluminescence",
    "family": "spectroscopy",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/pl.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -1698,9 +1734,12 @@
    "category": "research/neurophysiology",
    "family": "research_imaging",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_matrix_write + origin_plot_contour:contour_fill 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/time_frequency.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_matrix_write",
@@ -1789,9 +1828,12 @@
    "category": "general/trend",
    "family": "general_trend",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/trend.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -1830,9 +1872,12 @@
    "category": "spectroscopy/uv-vis",
    "family": "spectroscopy",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/uv_vis.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -1919,9 +1964,12 @@
    "category": "spectroscopy/xas",
    "family": "spectroscopy",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/xas.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot:line"
@@ -1960,9 +2008,12 @@
    "category": "spectroscopy/xps",
    "family": "spectroscopy",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot_template:stacked_spectra 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/xps.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot_template:stacked_spectra"
@@ -2066,9 +2117,12 @@
    "category": "spectroscopy/xps",
    "family": "spectroscopy",
    "visibility": "public",
-   "status": "spec-only",
-   "status_evidence": null,
-   "gap": "尚未实跑：预计 origin_plot_template:stacked_spectra 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）",
+   "status": "implemented",
+   "status_evidence": {
+    "verified_at": "2026-11-05",
+    "evidence": "evidence/xps_compare.md"
+   },
+   "gap": null,
    "renderer": {
     "channel": [
      "origin_plot_template:stacked_spectra"

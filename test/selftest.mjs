@@ -238,8 +238,10 @@ let LIST = [];
   assert.equal(LIST.length, 49, `模板数应为 49，实际 ${LIST.length}`);
   const impl = LIST.filter((t) => t.status === "implemented");
   const spec = LIST.filter((t) => t.status === "spec-only");
-  assert.equal(impl.length, 9, `implemented 应为 9，实际 ${impl.length}`);
-  assert.equal(spec.length, 40, `spec-only 应为 40，实际 ${spec.length}`);
+  // 2026-11-05：20 个 spec-only 批量实跑，18 个转 implemented（27 = 原 9 + 18），
+  // horizontal_bar / bland_altman 仍 spec-only（分组失效 / 缺 LoA 参考线）。
+  assert.equal(impl.length, 27, `implemented 应为 27，实际 ${impl.length}`);
+  assert.equal(spec.length, 22, `spec-only 应为 22，实际 ${spec.length}`);
   for (const t of impl) assert.ok(t.thumb, `implemented ${t.id} 必须有缩略图`);
   // 硬要求：spec-only 一律不许有 thumb（不许拿 implemented 的图冒充）
   const fake = spec.filter((t) => t.thumb !== null);

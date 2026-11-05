@@ -7,14 +7,16 @@ origin: editaplot
 category: spectroscopy/nmr
 family: spectroscopy
 visibility: public
-status: spec-only
+status: implemented
 source:
   repo: https://github.com/hang-jin/editaplot
   license: Apache-2.0
   path: runtime/templates/nmr
   commit: d93cd319c789d078da55acd75d120209b9288c83
-status_evidence: null
-gap: "尚未实跑：预计 origin_plot:line 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）"
+status_evidence:
+  verified_at: "2026-11-05"
+  evidence: evidence/nmr.md
+gap: null
 renderer:
   channel:
     - "origin_plot:line"

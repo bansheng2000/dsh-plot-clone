@@ -14,7 +14,7 @@ source:
   path: runtime/templates/bland_altman
   commit: d93cd319c789d078da55acd75d120209b9288c83
 status_evidence: null
-gap: "尚未实跑：预计 origin_plot:scatter 可覆盖，但没跑过就不写 implemented（第 2/3 步只实跑了 14 个）"
+gap: "散点（Mean vs Difference）可画，但模板数据契约要求 5 列（mean/difference/bias/loa_lower/loa_upper）并在图上画出偏倚线与 ±1.96 SD 一致性界限；本轮允许通道只有 scatter，参考线通道（origin_add_line）不在清单内。已出图 templates/evidence/failed/bland_altman.png（仅散点）作通道证据。"
 renderer:
   channel:
     - "origin_plot:scatter"
