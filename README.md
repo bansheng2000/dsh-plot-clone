@@ -53,7 +53,7 @@
 | `templates_index.py` | **模板索引的机器闸门**：`--check` 五条断言（implemented 必须有实测证据文件且非空 / spec-only 必须有 `gap` / system 模板 path 必须在 `templates/system/` 下 / 收藏不许悬空 / `renderer.channel` 的工具名与变体必须在白名单），rc 0 全过 / 1 有 FAIL / 2 索引缺失；`--list` 按「收藏置顶 → 系统按图型分组 → 用户」列三类；`--selected` 读用户在页面上选的那个模板（四分支：none / 过期选择 / implemented 给通道 / spec-only 报 gap）；`--selftest` 八条变异 + 三条 `--selected` 分支全部必须真红。**没证据的 implemented 过不了这道闸** |
 | `lib/templates.js` | **模板选择页的服务端**：`/plugins/dsh-plot-clone` 下四条路由（prefix 注册在 `webServer` seam，不新开端口）；列表 49 条带 `status`/`channels`/`thumb`，缩略图**只认 `templates/evidence/<id>.png`**，spec-only 无实拍图给 `thumb: null` 且 404 `no-thumbnail`（不许拿 implemented 的图冒充）；选中与收藏写 `~/.dsh/dsh-plot-clone/selection.json`，非法 id 逐条报错 |
 | `lib/page.js` | 页面本体：自包含 HTML（内联 CSS+JS，无外部依赖、无构建链），卡片=缩略图/名称/分类/status 标/★收藏/「用这个」，顶部搜索 + implemented｜spec-only 过滤；无图卡片显示「无实拍 / 仅规格，渲染未对接」 |
-| `lib/client.js` | **DSH 右侧栏的「模板」标签**（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`）；手写 classic script，`window.__ModuleLoader__.load` 挂载，无构建链。双注册：`sidebarRightTabs.register` 出标签、`slots.register` 出内容与标题；「用这个」写 `selection.json` 后原地标「已选」，写盘失败显式报错；宿主无该 slot 时安全跳过、不炸侧栏 |
+| `lib/client.js` | **DSH 右侧栏的「模板」标签**（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`）；手写 classic script，`window.__ModuleLoader__.load` 挂载，无构建链。双注册：`sidebarRightTabs.register` 出标签、`slots.register` 出内容与标题——**tab 的 `id` / `kind` 与 slot 的 `key` 必须同一个字符串**，宿主按 `kind` 查内容体，不等就是「标签在、面板空白」；「用这个」写 `selection.json` 后原地标「已选」，写盘失败显式报错；宿主无该 slot 时安全跳过、不炸侧栏 |
 | `test/preview.mjs` | 开发预览（不进 npm 包）：`node test/preview.mjs` 用与插件同一个 handler 起临时端口并打印 `templates_dir:` / `selection:` / `page:`，`PORT=` 可固定——插件还没装进 profile 时用它验路由和页面 |
 
 取色用法（需要精确 hex 时才跑）：

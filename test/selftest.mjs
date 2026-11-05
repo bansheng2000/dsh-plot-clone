@@ -484,10 +484,10 @@ function httpGet(url, method = "GET", body) {
   });
   assert.equal(types.length, 1, "tab type 只能注册 1 条");
   assert.equal(types[0].id, "dsh-plot-clone/templates");
-  assert.equal(types[0].kind, "plot-clone-templates");
+  assert.equal(types[0].kind, types[0].id, "tab 的 kind 必须等于 id——宿主按 kind 查内容体，不等就是空白面板");
   assert.equal(types[0].title(), "模板");
   assert.deepEqual(slotRegs.map((r) => r.name), ["sidebar.right.pane.tab", "sidebar.right.pane.tab.title"]);
-  assert.ok(slotRegs.every((r) => r.key === "dsh-plot-clone/templates" && r.key === types[0].id), "slot key 必须等于 tab id");
+  assert.ok(slotRegs.every((r) => r.key === types[0].kind), "slot key 必须等于 tab 的 kind（内容体按 kind 查，不是按 id）");
 
   // 老宿主：service / slots 各种缺失都不许抛
   let threw = null;
@@ -507,4 +507,133 @@ function httpGet(url, method = "GET", body) {
   );
 }
 
-console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 侧栏标签契约 / 侧栏 apply）`);
+/* ───────────── 17. 侧栏标签：真渲染（mini-React，不引依赖） ─────────────
+   空白面板这种失败必须红：把 TemplatesPanel 真跑一遍，断言渲染出的文本里
+   有 49 与张数、没有 undefined；fetch 404 时渲染出错误文案而不是空白。 */
+{
+  const fsMod = await import("node:fs");
+  const vmMod = await import("node:vm");
+  const src = fsMod.readFileSync(join(rootDir, "lib", "client.js"), "utf8");
+
+  /** 迷你 React：够跑这个组件的 hooks + jsx，不装 react-dom。 */
+  function mount(fetchImpl) {
+    const hooks = [];
+    const effects = [];
+    let idx = 0;
+    let dirty = false;
+    const sandbox = {
+      window: {},
+      document: { getElementById: () => null, head: { appendChild: () => {} }, createElement: () => ({}) },
+      console: { warn() {}, log() {}, error() {} },
+      fetch: fetchImpl,
+    };
+    sandbox.window.__ModuleLoader__ = { load: (cfg) => { sandbox.__cfg = cfg; } };
+    sandbox.globalThis = sandbox;
+    vmMod.createContext(sandbox);
+    vmMod.runInContext(src, sandbox, { filename: "client.js" });
+
+    const react = {
+      useState(init) {
+        const i = idx++;
+        if (!(i in hooks)) hooks[i] = typeof init === "function" ? init() : init;
+        return [hooks[i], (next) => {
+          hooks[i] = typeof next === "function" ? next(hooks[i]) : next;
+          dirty = true;
+        }];
+      },
+      useRef(v) { const i = idx++; if (!(i in hooks)) hooks[i] = { current: v }; return hooks[i]; },
+      useMemo(fn) { idx++; return fn(); },
+      useEffect(fn) { idx++; effects.push(fn); },
+    };
+    const plugin = sandbox.__cfg.factory((name) =>
+      name === "react" ? react : { jsx: (type, props, children) => ({ type, props: props ?? {}, children }) }
+    );
+
+    const render = async () => {
+      idx = 0;
+      let tree = plugin.TemplatesPanel({});
+      for (const fn of effects.splice(0)) await fn();   // 只跑首轮 effect（deps: []）
+      for (let round = 0; round < 8; round += 1) {
+        await new Promise((r) => setTimeout(r, 0));
+        if (dirty === false) break;
+        dirty = false;
+        idx = 0;
+        tree = plugin.TemplatesPanel({});
+      }
+      return tree;
+    };
+    return { plugin, render };
+  }
+
+  const textOf = (node, out = []) => {
+    if (node === null || node === undefined) return out;
+    if (Array.isArray(node)) { for (const c of node) textOf(c, out); return out; }
+    if (typeof node === "object") return textOf(node.children, out);
+    out.push(String(node));
+    return out;
+  };
+  const nodesWith = (node, prop, out = []) => {
+    if (node === null || node === undefined || typeof node !== "object") return out;
+    if (Array.isArray(node)) { for (const c of node) nodesWith(c, prop, out); return out; }
+    if (node.props && Object.prototype.hasOwnProperty.call(node.props, prop)) out.push(node.props[prop]);
+    nodesWith(node.children, prop, out);
+    return out;
+  };
+
+  const items = Array.from({ length: 49 }, (_, i) => ({
+    id: `tpl-${i}`,
+    name: `模板 ${i}`,
+    category: i % 2 === 0 ? "general" : "spectroscopy",
+    status: i < 9 ? "implemented" : "spec-only",
+    channels: ["origin_plot:line"],
+    thumb: i < 9 ? `/plugins/dsh-plot-clone/thumb/tpl-${i}` : null,
+  }));
+  const okFetch = async (url) => ({
+    ok: true,
+    status: 200,
+    json: async () => (url.endsWith("/templates")
+      ? { ok: true, templates: items }
+      : { ok: true, selected: null, favorites: [] }),
+  });
+  const badFetch = async () => ({ ok: false, status: 404, json: async () => { throw new Error("no body"); } });
+
+  const good = mount(okFetch);
+  const goodText = textOf(await good.render()).join(" ");
+  const cards = nodesWith(await good.render(), "data-template-id");
+  assert.ok(goodText.includes("全部 49"), `渲染出的标签数必须是 49，实际文本：${goodText.slice(0, 120)}`);
+  assert.ok(goodText.includes("共 49 个系统模板"), `页脚张数必须是 49，实际文本：${goodText.slice(-80)}`);
+  assert.equal(cards.length, 49, `卡片数必须是 49，实际 ${cards.length}`);
+  assert.ok(!goodText.includes("undefined"), "渲染结果里不许出现 undefined");
+  assert.ok(goodText.includes("无实拍 / 仅规格，渲染未对接"), "spec-only 卡片必须显示「无实拍」");
+
+  const bad = mount(badFetch);
+  const badText = textOf(await bad.render()).join(" ");
+  const badCards = nodesWith(await bad.render(), "data-template-id");
+  assert.ok(badText.includes("HTTP 404"), `列表拉不到时必须渲染错误文案，实际文本：${badText.slice(0, 160)}`);
+  assert.equal(badCards.length, 0, `拉不到列表时不许有卡片，实际 ${badCards.length}`);
+  assert.ok(badText.trim().length > 0, "拉不到列表时不许渲染成空白面板");
+
+  // 关键：内容体必须挂在宿主按 kind 查的那条 key 上，且挂的正是能渲染 49 条的那个组件。
+  const hostTypes = [];
+  const hostSlots = [];
+  const hostSlotsApi = {
+    inject: (name, cb) => cb(hostSlotsApi),
+    register: (spec, Component) => { hostSlots.push({ ...spec, Component }); return () => {}; },
+  };
+  good.plugin.apply({
+    slots: hostSlotsApi,
+    inject: (names, cb) =>
+      cb({ get: (n) => (n === "sidebarRightTabs" ? { register: (spec) => { hostTypes.push(spec); return () => {}; } } : undefined) }),
+  });
+  const body = hostSlots.find((s) => s.name === "sidebar.right.pane.tab");
+  assert.ok(body !== undefined, "必须注册 sidebar.right.pane.tab 内容体");
+  assert.equal(body.key, hostTypes[0].kind, `内容体 key(${body.key}) 必须等于 tab.kind(${hostTypes[0].kind})，否则标签在、内容空白`);
+  assert.equal(body.Component, good.plugin.TemplatesPanel, "内容体必须就是能渲染出 49 条的 TemplatesPanel");
+
+  ok(
+    "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案",
+    `cards=${cards.length} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind}`,
+  );
+}
+
+console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 侧栏标签契约 / 侧栏 apply / 标签真渲染）`);
