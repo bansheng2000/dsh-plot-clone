@@ -10,7 +10,7 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 > v2.1：加 `figure_metrics.py`（参考图 ↔ 成品图量化并排对照，收敛循环靠它而不是肉眼）；新增硬坑 11/12（COM 异常可 `origin_release` 救回但工程会丢、字号/点径的正确通道）。
 > v2.2：借 editaplot 的参考图契约——新增第 3 步「样式台账」（每字段三态 applied / retained_default / rejected + 来源优先级 + 允许清单），收尾加「缺读回=失败」；参考图只给文字**角色**，不给文字内容。
 > v2.7（2026-11-03）：科研投稿规格定档（第 2 步 + `pub_target`/`pub_limits`/`stats` + 自检 17 条 + `--pub-check` 可辨三查）；**同时把范围收回到只做 Origin 复刻**——矢量（Illustrator/SVG）与 3D（Blender）两条通道实测达不到可用水平，已移除，判型选通道那一步不再存在。
-> 2026-11-05（插件 0.1.1）：审计七项落地——删除用户模板同时摘收藏（`--check` 覆盖 `selection.json`）、禁止 `doc -o` 打开 `.oth`、三个读数坑进硬坑清单（`list_pages.graphs` 恒空 / `origin_status.origin_exe` 报错版本 / GDI `#32770` 卡 COM 60s）、`templates_index.py --match` 按 `data_contract` 找候选、用户模板缩略图改由 agent 侧 `origin_export(width=600)` 补、`index.data_contract` 必须逐字镜像模板自己的 `schema.json`、第 4 步补「点名模板 id」三步流程；**编号规范收敛为「第 N 步」连续整数一套**，第 4 步下的子标题去掉 `1. 2. 3.` 层级号，全文不再有 `5.1` 这类编号。
+> v2.8（2026-11-05）：**技能与插件自此同一版本号**_（此前技能 v2.x / 插件 0.x 两条线并存，0.1.1 未发布使用）_。内容：审计七项落地——删除用户模板同时摘收藏（`--check` 覆盖 `selection.json`）、禁止 `doc -o` 打开 `.oth`、三个读数坑进硬坑清单（`list_pages.graphs` 恒空 / `origin_status.origin_exe` 报错版本 / GDI `#32770` 卡 COM 60s）、`templates_index.py --match` 按 `data_contract` 找候选、用户模板缩略图改由 agent 侧 `origin_export(width=600)` 补、`index.data_contract` 必须逐字镜像模板自己的 `schema.json`、第 4 步补「点名模板 id」三步流程；**编号规范收敛为「第 N 步」连续整数一套**，第 4 步下的子标题去掉 `1. 2. 3.` 层级号，全文不再有 `5.1` 这类编号。插件 `package.json` 与 SKILL 版本号此后一致推进。
 
 > v2.6（2026-11-01）：量测层重写——新增 `pixel_core.py`（阈值 / 取色 / 框检测 / 装饰带 / 刻度 / 点径 / 文字行只此一份）与 `test_synth.py`（29 条合成真值断言，改量测代码必须先跑它）；修 14 处实测缺陷（框坐标 −2px、渐变带报 3px、4x 刻度报 25px、点径上限砍掉大游程、细线色被降采样丢弃、半宽与多面板量不到框、两取色器口径不一、反斜杠路径打整条）；判据按实测精度重定（frame ≤1px / band <5% / dot ≤10% 或 ≤1px / tick ≤2px），做不到的三项（多段非单调渐变、>40px 大符号、无闭合框组图）明写进文档。
 
