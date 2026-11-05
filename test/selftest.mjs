@@ -9,9 +9,9 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import * as httpMod from "node:http";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 const mod = await import("../lib/index.js");
 
@@ -413,7 +413,161 @@ function httpGet(url, method = "GET", body) {
   });
 }
 
-/* ───────────── 15. 侧栏标签客户端：文件与 package.json 契约 ───────────── */
+/* ───────────── 15) 用户模板：Origin 文件引用（上传 / 列表 / 选中带路径 / 删除 / 拒绝） ───────────── */
+const um = await import("../lib/user_templates.js");
+
+/** 发原始字节（上传 Origin 文件用），返回 {status, headers, body}。 */
+function httpSend(url, method, body, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    let settled = false;
+    const req = httpMod.request(
+      { host: u.hostname, port: u.port, path: u.pathname + u.search, method, headers, agent: false },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => {
+          settled = true;
+          resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) });
+        });
+      },
+    );
+    req.on("error", (error) => {
+      if (!settled) reject(error);
+    });
+    if (body !== undefined) req.write(body);
+    req.end();
+  });
+}
+{
+  await withRoutes(async ({ base, env }) => {
+    const root = um.userTemplatesDir(tm.stateDir(env));
+
+    const before = JSON.parse((await httpGet(`${base}/templates`)).body.toString("utf8"));
+    assert.equal(before.count, 49);
+    assert.equal(before.system, 49);
+    assert.equal(before.user, 0);
+
+    // 假 .otp：只按扩展名判定，不解析内容（解析 Origin 格式本来就不归我们做）
+    const bytes = Buffer.from("FAKE-ORIGIN-TEMPLATE-BYTES-0123456789");
+    const up = await httpSend(
+      `${base}/user-templates?filename=demo.otp&name=${encodeURIComponent("我的模板")}&category=user%2Fdemo`,
+      "POST",
+      bytes,
+    );
+    assert.equal(up.status, 200, `上传应 200，实际 ${up.status}：${up.body.toString("utf8").slice(0, 200)}`);
+    const created = JSON.parse(up.body.toString("utf8"));
+    assert.equal(created.ok, true);
+    assert.equal(created.count, 50);
+
+    const list = JSON.parse((await httpGet(`${base}/templates`)).body.toString("utf8"));
+    assert.equal(list.count, 50, "上传后列表应 +1");
+    assert.equal(list.system, 49, "预设数量不许变");
+    assert.equal(list.user, 1);
+    const item = list.templates.find((t) => t.id === created.id);
+    assert.ok(item !== undefined, "上传的模板必须出现在列表里");
+    assert.equal(item.kind, "user");
+    assert.equal(item.status, "external", "用户模板不许自称 implemented（渲染在 Origin 里，不是我们的通道）");
+    assert.equal(item.ext, ".otp");
+    assert.equal(item.size, bytes.length);
+    assert.equal(item.thumb, null, "没有缩略图就必须 null，不许拿别人的图");
+    assert.ok(existsSync(item.origin_file), `origin_file 必须指向真实文件：${item.origin_file}`);
+    assert.match(item.usage, /Origin/);
+
+    const metaPath = join(root, created.id, "meta.json");
+    const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+    assert.equal(meta.sha256, um.sha256(bytes), "meta.sha256 必须等于源文件字节的 sha256");
+    assert.equal(meta.original_name, "demo.otp");
+    assert.equal(meta.origin_file, "source.otp");
+    assert.equal(readFileSync(join(dirname(metaPath), "source.otp")).equals(bytes), true, "原件必须字节一致");
+    assert.ok(existsSync(join(root, "index.json")), "建完必须重建 user index.json");
+
+    const noThumb = await httpGet(`${base}/thumb/${created.id}`);
+    assert.equal(noThumb.status, 404, "用户模板没给缩略图就是 404，不许占位");
+    assert.equal(JSON.parse(noThumb.body.toString("utf8")).code, "no-thumbnail");
+
+    const sel = await httpSend(
+      `${base}/selection`,
+      "POST",
+      Buffer.from(JSON.stringify({ selected: created.id })),
+      { "content-type": "application/json" },
+    );
+    assert.equal(sel.status, 200);
+    const selData = JSON.parse(sel.body.toString("utf8"));
+    assert.equal(selData.selected, created.id);
+    assert.equal(selData.origin_file, item.origin_file, "选中用户模板必须回传 origin_file 绝对路径");
+    assert.ok(String(selData.usage ?? "").length > 0, "选中用户模板必须回传「怎么用它」");
+    const onDisk = JSON.parse(readFileSync(tm.selectionPath(env), "utf8"));
+    assert.equal(onDisk.origin_file, item.origin_file, "selection.json 必须带 origin_file 给 agent 用");
+
+    const ren = await httpSend(
+      `${base}/user-templates/${created.id}/rename`,
+      "POST",
+      Buffer.from(JSON.stringify({ name: "改名后" })),
+      { "content-type": "application/json" },
+    );
+    assert.equal(ren.status, 200);
+    assert.equal(JSON.parse(ren.body.toString("utf8")).template.name, "改名后");
+
+    // 拒绝非 Origin 扩展名：400 且说明支持哪些
+    const badExt = await httpSend(`${base}/user-templates?filename=x.png`, "POST", Buffer.from("89504e47"));
+    assert.equal(badExt.status, 400, "非 Origin 扩展名必须 400");
+    const badBody = JSON.parse(badExt.body.toString("utf8"));
+    assert.equal(badBody.code, "unsupported-ext");
+    assert.match(String(badBody.message ?? ""), /\.otp/);
+    assert.equal(Array.isArray(badBody.accepted) ? badBody.accepted.length : 0, 5, `accepted 必须列出 5 种扩展名，实际：${JSON.stringify(badBody)}`);
+
+    // 超限：走同一条纯函数（HTTP 层另有 content-length 预检，这条盖住大小判定本身）
+    const big = um.createUserTemplate({ root, bytes: Buffer.alloc(64 * 1024 * 1024 + 1), filename: "big.opju" });
+    assert.equal(big.ok, false);
+    assert.equal(big.code, "too-large");
+    assert.match(big.message, /64 MB/);
+
+    // 删除必须回落：列表回到 49、选中清空、目录消失
+    const del = await httpSend(`${base}/user-templates/${created.id}`, "DELETE");
+    assert.equal(del.status, 200);
+    const after = JSON.parse((await httpGet(`${base}/templates`)).body.toString("utf8"));
+    assert.equal(after.count, 49);
+    assert.equal(after.user, 0);
+    const afterSel = JSON.parse((await httpGet(`${base}/selection`)).body.toString("utf8"));
+    assert.equal(afterSel.selected, null, "删掉选中的用户模板必须回落，不许留幽灵选中");
+    assert.equal(existsSync(join(root, created.id)), false);
+
+    ok(
+      "用户模板：上传 +1 / 原件字节一致 / meta sha256 一致 / 选中带 origin_file / 改名 / 拒绝 png / 超限 / 删除回落",
+      `id=${created.id} size=${bytes.length}B sha=${meta.sha256.slice(0, 12)}… count=${after.count}`,
+    );
+  });
+}
+
+/* ───────────── 16) CLI：从 Origin 存下来的文件建用户模板（SKILL 第 8 步用） ───────────── */
+{
+  const { execFileSync } = await import("node:child_process");
+  const { dir } = freshHome();
+  try {
+    const fake = join(dir, "cli-demo.opju");
+    const payload = Buffer.from("CLI-ORIGIN-PROJECT-BYTES-0123456789");
+    writeFileSync(fake, payload);
+    const out = execFileSync(
+      process.execPath,
+      [join(rootDir, "make_user_template.mjs"), "--from", fake, "--name", "CLI 模板", "--category", "user/cli", "--json"],
+      { env: { ...process.env, DSH_HOME: "", USERPROFILE: dir }, encoding: "utf8" },
+    );
+    const parsed = JSON.parse(out);
+    assert.equal(parsed.ok, true);
+    assert.match(parsed.id, /^user-/);
+    assert.ok(existsSync(parsed.origin_file), `CLI 原件不存在：${parsed.origin_file}`);
+    assert.equal(readFileSync(parsed.origin_file).equals(payload), true, "CLI 复制必须字节一致");
+    assert.equal(parsed.size, payload.length);
+    assert.match(parsed.usage, /Origin/);
+    assert.ok(existsSync(parsed.index), "CLI 必须建出 user index.json");
+    ok("CLI make_user_template：原件字节一致 + 建 index", `id=${parsed.id} size=${parsed.size}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/* ───────────── 17. 侧栏标签客户端：文件与 package.json 契约 ───────────── */
 {
   const fsMod = await import("node:fs");
   const clientPath = join(rootDir, "lib", "client.js");
@@ -443,7 +597,7 @@ function httpGet(url, method = "GET", body) {
   );
 }
 
-/* ───────────── 16. 侧栏标签：在假宿主里真跑 apply ───────────── */
+/* ───────────── 18. 侧栏标签：在假宿主里真跑 apply ───────────── */
 {
   const fsMod = await import("node:fs");
   const vmMod = await import("node:vm");
@@ -507,7 +661,7 @@ function httpGet(url, method = "GET", body) {
   );
 }
 
-/* ───────────── 17. 侧栏标签：真渲染（mini-React，不引依赖） ─────────────
+/* ───────────── 19. 侧栏标签：真渲染（mini-React，不引依赖） ─────────────
    空白面板这种失败必须红：把 TemplatesPanel 真跑一遍，断言渲染出的文本里
    有 49 与张数、没有 undefined；fetch 404 时渲染出错误文案而不是空白。 */
 {
@@ -614,7 +768,7 @@ function httpGet(url, method = "GET", body) {
   const goodText = textOf(await good.render()).join(" ");
   const cards = nodesWith(await good.render(), "data-template-id");
   assert.ok(goodText.includes("全部 49"), `渲染出的标签数必须是 49，实际文本：${goodText.slice(0, 120)}`);
-  assert.ok(goodText.includes("共 49 个系统模板"), `页脚张数必须是 49，实际文本：${goodText.slice(-80)}`);
+  assert.ok(goodText.includes("共 49 个模板（预设 49 · 用户 0）"), `页脚张数必须是 49，实际文本：${goodText.slice(-90)}`);
   assert.equal(cards.length, 49, `卡片数必须是 49，实际 ${cards.length}`);
   assert.ok(!goodText.includes("undefined"), "渲染结果里不许出现 undefined");
   assert.ok(goodText.includes("无实拍 / 仅规格，渲染未对接"), "spec-only 卡片必须显示「无实拍」");
@@ -637,15 +791,21 @@ function httpGet(url, method = "GET", body) {
     return { text: textOf(next).join(" "), cards: nodesWith(next, "data-template-id").length };
   };
   assert.ok(
-    goodText.includes("全部 49") && goodText.includes("预设 49") && goodText.includes("收藏 0"),
-    `筛选位必须是 全部/预设/收藏，实际：${goodText.slice(0, 90)}`,
+    goodText.includes("全部 49") && goodText.includes("预设 49") && goodText.includes("用户 0") && goodText.includes("收藏 0"),
+    `筛选位必须是 全部/预设/用户/收藏，实际：${goodText.slice(0, 110)}`,
   );
   const fAll = await clickChip(good, "全部");
   const fPre = await clickChip(good, "预设");
+  const fUser = await clickChip(good, "用户");
   const fFav = await clickChip(good, "收藏");
   assert.equal(fAll.cards, 49, `「全部」应 49 张，实际 ${fAll.cards}`);
   assert.equal(fPre.cards, 49, `「预设」应 49 张（缺 kind 按 system），实际 ${fPre.cards}`);
+  assert.equal(fUser.cards, 0, `「用户」空时应 0 张，实际 ${fUser.cards}`);
   assert.equal(fFav.cards, 0, `「收藏」空时应 0 张，实际 ${fFav.cards}`);
+  assert.ok(
+    fUser.text.includes("还没有你自己的模板，可以上传 Origin 模板或工程"),
+    `用户档为空必须有上传引导，实际：${fUser.text.slice(0, 140)}`,
+  );
   assert.ok(
     fFav.text.includes("还没有收藏的模板"),
     `收藏为空必须有空态文案，实际：${fFav.text.slice(0, 140)}`,
@@ -664,8 +824,21 @@ function httpGet(url, method = "GET", body) {
   const favOne = await clickChip(good, "收藏");
   assert.equal(favOne.cards, 1, `收藏后「收藏」筛选应 1 张，实际 ${favOne.cards}`);
 
-  // 将来有用户模板：按 kind 分类，user 不许混进「预设」。
-  const mixed = items.map((t, i) => ({ ...t, kind: i === 0 ? "user" : "system" }));
+  // 用户模板：按 kind 分类，user 不许混进「预设」；卡片不许伪造预览图。
+  const mixed = items.map((t, i) =>
+    i === 0
+      ? {
+          ...t,
+          kind: "user",
+          status: "external",
+          thumb: null,
+          ext: ".opju",
+          original_name: "origin-demo.opju",
+          size: 2048,
+          usage: "Origin 工程：交给 Origin 打开 → origin_template_save 存成样式快照",
+        }
+      : { ...t, kind: "system" },
+  );
   const mix = mount(async (url) => ({
     ok: true,
     status: 200,
@@ -675,8 +848,21 @@ function httpGet(url, method = "GET", body) {
   }));
   const mixText = textOf(await mix.render()).join(" ");
   assert.ok(mixText.includes("预设 48"), `user 模板不许算进预设，实际：${mixText.slice(0, 90)}`);
+  assert.ok(mixText.includes("用户 1"), `用户档计数应为 1，实际：${mixText.slice(0, 120)}`);
   assert.ok(mixText.includes("用户"), "用户模板卡片必须标「用户」");
   assert.equal((await clickChip(mix, "预设")).cards, 48, "「预设」应排除 user 模板");
+  const mixUser = await clickChip(mix, "用户");
+  assert.equal(mixUser.cards, 1, `「用户」档应只剩用户模板，实际 ${mixUser.cards}`);
+  assert.ok(
+    mixUser.text.includes("无缩略图 · Origin 文件"),
+    `用户模板没有图必须显示「无缩略图」，不许伪造预览，实际：${mixUser.text.slice(0, 160)}`,
+  );
+  assert.ok(mixUser.text.includes("origin_template_save"), "用户模板卡片必须给出「怎么用」一行");
+  assert.ok(
+    mixUser.text.includes("origin-demo.opju") && mixUser.text.includes("2.0 KB"),
+    `用户卡片必须显示原始文件名与大小，实际：${mixUser.text.slice(0, 160)}`,
+  );
+  assert.ok(!mixUser.text.includes("undefined"), "用户卡片渲染不许出现 undefined");
 
   const bad = mount(badFetch);  const badText = textOf(await bad.render()).join(" ");
   const badCards = nodesWith(await bad.render(), "data-template-id");
@@ -702,9 +888,9 @@ function httpGet(url, method = "GET", body) {
   assert.equal(body.Component, good.plugin.TemplatesPanel, "内容体必须就是能渲染出 49 条的 TemplatesPanel");
 
   ok(
-    "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选三档",
-    `cards=${cards.length} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fFav.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind}`,
+    "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选四档 + 用户卡片无伪造预览",
+    `cards=${cards.length} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fUser.cards}/${fFav.cards} 用户空态=${fUser.text.includes("还没有你自己的模板")} 用户卡片=${mixUser.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind}`,
   );
 }
 
-console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选三档）`);
+console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档）`);

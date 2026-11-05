@@ -12,9 +12,11 @@
   "files": [
     "lib/index.js",
     "lib/templates.js",
+    "lib/user_templates.js",
     "lib/page.js",
     "lib/client.js",
     "lib/bootstrap.py",
+    "make_user_template.mjs",
     "cordis.patch.yml",
     "README.md",
     "test/selftest.mjs",

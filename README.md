@@ -51,9 +51,11 @@
 | `verify_deliverable.py` | **交付三件套文件层检查**（不读 Origin 对象属性，那是 `origin_verify_graph` 的活）：三个文件存在且非空、三者同 basename、PNG 宽 ≥ `--min-width`（默认 1800）；逐项 PASS/FAIL，rc 0 全过 / 4 有 FAIL / 2 用法错误；`--selftest` 用临时文件造「缺文件 / basename 不一致 / 宽度不够 / 全过」四种场景断言 |
 | `test_synth.py` | **合成真值自检**：画出几何已知的图（框位置、20px 带、渐变带、1x/2x/4x 刻度、d=10/20 点径、已知字高、2px 细线、半宽面板、双面板），对三个脚本的读数逐项断言（29 条，公差 ±1px/±2%）。改量测代码先跑它 |
 | `templates_index.py` | **模板索引的机器闸门**：`--check` 五条断言（implemented 必须有实测证据文件且非空 / spec-only 必须有 `gap` / system 模板 path 必须在 `templates/system/` 下 / 收藏不许悬空 / `renderer.channel` 的工具名与变体必须在白名单），rc 0 全过 / 1 有 FAIL / 2 索引缺失；`--list` 按「收藏置顶 → 系统按图型分组 → 用户」列三类；`--selected` 读用户在页面上选的那个模板（四分支：none / 过期选择 / implemented 给通道 / spec-only 报 gap）；`--selftest` 八条变异 + 三条 `--selected` 分支全部必须真红。**没证据的 implemented 过不了这道闸** |
-| `lib/templates.js` | **模板选择页的服务端**：`/plugins/dsh-plot-clone` 下四条路由（prefix 注册在 `webServer` seam，不新开端口）；列表 49 条带 `status`/`channels`/`thumb`，缩略图**只认 `templates/evidence/<id>.png`**，spec-only 无实拍图给 `thumb: null` 且 404 `no-thumbnail`（不许拿 implemented 的图冒充）；选中与收藏写 `~/.dsh/dsh-plot-clone/selection.json`，非法 id 逐条报错 |
-| `lib/page.js` | 页面本体：自包含 HTML（内联 CSS+JS，无外部依赖、无构建链），卡片=缩略图/名称/分类/status 标/★收藏/「用这个」，顶部搜索 + implemented｜spec-only 过滤；无图卡片显示「无实拍 / 仅规格，渲染未对接」 |
-| `lib/client.js` | **DSH 右侧栏的「模板」标签**（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`）；手写 classic script，`window.__ModuleLoader__.load` 挂载，无构建链。双注册：`sidebarRightTabs.register` 出标签、`slots.register` 出内容与标题——**tab 的 `id` / `kind` 与 slot 的 `key` 必须同一个字符串**，宿主按 `kind` 查内容体，不等就是「标签在、面板空白」；顶部筛选按**来源**分 `全部 N` / `预设 N` / `收藏 N`（收藏为 0 时给「还没有收藏的模板」空态），`implemented` / `spec-only` 只作卡片状态徽标、不占筛选位，卡片另标来源「预设」/「用户」（按后端 `kind` 分类，缺省当 system）；「用这个」写 `selection.json` 后原地标「已选」，写盘失败显式报错；宿主无该 slot 时安全跳过、不炸侧栏 |
+| `lib/templates.js` | **模板选择页的服务端**：`/plugins/dsh-plot-clone` 下 7 条路由（prefix 注册在 `webServer` seam，不新开端口）；列表 = 49 条系统模板 + 用户模板，缩略图**只认 `templates/evidence/<id>.png`（系统）或 `user-templates/<id>/thumb.png`（用户）**，没有就给 `thumb: null` 且 404 `no-thumbnail`（不许拿 implemented 的图冒充）；选中与收藏写 `~/.dsh/dsh-plot-clone/selection.json`，选中用户模板时把 `origin_file` 绝对路径与 `usage` 一起写盘 |
+| `lib/user_templates.js` | 用户模板 = 一个 **Origin 文件**（`.otp .otpu .opj .opju .oth`）原样复制 + `meta.json`（sha256/原始文件名/尺寸/时间）。**不解析 Origin 格式、不量测、不建 spec**；单文件上限 64 MB；`templateDir(root, id)` 是唯一目录穿越闸门 |
+| `make_user_template.mjs` | CLI：`node make_user_template.mjs --from <file> [--name][--category][--note]`，把 Origin 存下来的 `.opju/.otpu` 收进 `~/.dsh/dsh-plot-clone/user-templates/<id>/`（SKILL 第 8 步「保存模板」用它；仓库零新增） |
+| `lib/page.js` | 页面本体：自包含 HTML（内联 CSS+JS，无外部依赖、无构建链），卡片=缩略图/名称/分类/status 标/★收藏/「用这个」，顶部搜索 + status 过滤（后备网页；主入口是侧栏标签）；无图卡片显示「无实拍 / 仅规格，渲染未对接」，用户条目显示「无缩略图 / Origin 文件」 |
+| `lib/client.js` | **DSH 右侧栏的「模板」标签**（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`）；手写 classic script，`window.__ModuleLoader__.load` 挂载，无构建链。双注册：`sidebarRightTabs.register` 出标签、`slots.register` 出内容与标题——**tab 的 `id` / `kind` 与 slot 的 `key` 必须同一个字符串**，宿主按 `kind` 查内容体，不等就是「标签在、面板空白」；顶部筛选按**来源**分 `全部 N` / `预设 N` / `用户 N` / `收藏 N`（用户档空态「还没有你自己的模板，可以上传 Origin 模板或工程」、收藏空态「还没有收藏的模板」），`implemented` / `spec-only` 只作系统模板的状态徽标、不占筛选位；用户卡片标「用户」+ 扩展名、显示原件名/大小/「怎么用」一行，可「重命名」「删除」，「＋ 上传模板」只回执文件名/大小/类型/时间，**不画伪造预览**；「用这个」写 `selection.json` 后原地标「已选」，写盘失败显式报错；宿主无该 slot 时安全跳过、不炸侧栏 |
 | `test/preview.mjs` | 开发预览（不进 npm 包）：`node test/preview.mjs` 用与插件同一个 handler 起临时端口并打印 `templates_dir:` / `selection:` / `page:`，`PORT=` 可固定——插件还没装进 profile 时用它验路由和页面 |
 
 取色用法（需要精确 hex 时才跑）：
@@ -178,7 +180,7 @@ python verify_deliverable.py --selftest
 
 为什么注册走 HTTP API 而不写 `storages/mcp_connector.json`：connector 在 `apply` 时把 domain open 进内存且全库无文件监听，外部写入必须重启 DSH 才生效，还会绕过快照/回滚与 scope 校验。HTTP API 是它自己的 UI 也在用的接口（有方法白名单与回环信任校验）。
 
-状态与产物都在用户目录，**不放插件目录**（pnpm 重装会清空 `node_modules`）：`~/.dsh/dsh-plot-clone/{venv,server,cache,mcp-state.json,selection.json,bootstrap.json,bootstrap.log}`。
+状态与产物都在用户目录，**不放插件目录**（pnpm 重装会清空 `node_modules`）：`~/.dsh/dsh-plot-clone/{venv,server,cache,mcp-state.json,selection.json,user-templates/,bootstrap.json,bootstrap.log}`。
 
 ### 模板选择页（入口在右侧栏「模板」标签）
 
@@ -189,12 +191,17 @@ python verify_deliverable.py --selftest
 | 路由 | 返回 |
 |---|---|
 | `GET /` | 自包含 HTML（无外部资源） |
-| `GET /templates` | 49 条 JSON：`id/name/category/status/channels/thumb/evidencePath/kind/gap` |
-| `GET /thumb/<id>` | `image/png`，且**只有 `templates/evidence/<id>.png` 存在时**才 200；否则 404 `no-thumbnail` |
-| `GET /selection` | `{selected, favorites, updatedAt}` |
+| `GET /templates` | `{ok, count, system, user, templates, selected, favorites}`；条目 `id/name/category/status/channels/thumb/evidencePath/kind/gap`，用户条目另带 `origin_file/original_name/ext/sha256/size/usage/createdAt` 且 `status:"external"` |
+| `GET /thumb/<id>` | `image/png`，且**只有 `templates/evidence/<id>.png`（系统）或 `user-templates/<id>/thumb.png`（用户）存在时**才 200；否则 404 `no-thumbnail` |
+| `POST /user-templates?filename=&name=&category=&note=` | body 是文件**原始字节**；只认 `.otp .otpu .opj .opju .oth`，其它 400 `unsupported-ext`（附 `accepted` 五项），超 64 MB 413 `too-large`；成功回 `{ok, id, template, count, system, user}` |
+| `DELETE /user-templates/<id>` | 删运行时目录；删的正是当前选中项时自动清空 `selected`，回 `selection` 视图 |
+| `POST /user-templates/<id>/rename` | body `{name?, category?, note?}` |
+| `GET /selection` | `{selected, favorites, updatedAt, origin_file, usage}` |
 | `POST /selection` | body `{selected: "<id>"\|null, favorites: ["<id>"]}`；非法 id 400 并逐条报错，收藏可增可删 |
 
-选中落 `~/.dsh/dsh-plot-clone/selection.json`（与 `mcp-state.json` 同目录，pnpm 重装不清）。它只是**偏好**，不改自动匹配判据：第 4 步先用 `python templates_index.py --selected` 读它，命中就按用户选的做；数据对不上就改自动匹配并给「推荐 id + 缩略图」，不报错也不硬套。
+选中落 `~/.dsh/dsh-plot-clone/selection.json`（与 `mcp-state.json` 同目录，pnpm 重装不清）。它只是**偏好**，不改自动匹配判据：第 4 步先用 `python templates_index.py --selected` 读它，命中就按用户选的做；数据对不上就改自动匹配并给「推荐 id + 缩略图」，不报错也不硬套。选中**用户模板**时文件里还带 `origin_file`（绝对路径）和 `usage`——agent 拿这两样去 Origin 里打开、读图层、存样式快照再套用，插件不解析 Origin 格式。
+
+用户模板存 `~/.dsh/dsh-plot-clone/user-templates/<id>/`：`source.otp|figure.opju`（原件，字节不变）+ `meta.json`（sha256/原始文件名/尺寸/时间）+ 可选 `thumb.png`（用户自己给才显示）。仓库里**零新增**。
 
 ### bootstrap（首次安装器）
 

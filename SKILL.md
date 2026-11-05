@@ -201,7 +201,7 @@ python test_synth.py                            # 改过量测代码就跑这个
 
 ### 1. 用户选过模板，就先按它做（手动选择优先于自动匹配）
 
-插件在 DSH **右侧栏**加了一个「模板」标签（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`）：点开就是模板选择器，搜索 / 按 `implemented｜spec-only` 过滤 / ★ 收藏 / 「用这个」。同一个页面也能直接开：`http://127.0.0.1:<DSH 端口>/plugins/dsh-plot-clone/`（无外部依赖，老版本宿主没这个标签时用它）。用户点「用这个」写的是：
+插件在 DSH **右侧栏**加了一个「模板」标签（`sidebar.right.pane.tab`，key `dsh-plot-clone/templates`）：点开就是模板选择器，搜索 / 按来源过滤（`全部 / 预设 / 用户 / 收藏`）/ ★ 收藏 / 「用这个」，用户档里还能「＋ 上传模板」、重命名、删除。同一个页面也能直接开：`http://127.0.0.1:<DSH 端口>/plugins/dsh-plot-clone/`（无外部依赖，老版本宿主没这个标签时用它）。用户点「用这个」写的是：
 
 ```
 %USERPROFILE%\.dsh\dsh-plot-clone\selection.json      # 设了 DSH_HOME 则在它下面
@@ -215,7 +215,14 @@ python templates_index.py --selected
 
 - `SELECTED none` → 用户没选，走下面第 2 小步的自动匹配。
 - 有 selected 且 `[implemented]` → **直接按这条模板的 `renderer.channel` + 两份契约走**，跳过第 2/3 小步。用户明确选的图型不许换成你觉得更好的。
-- 有 selected 但 `[spec-only]` → 原话说明「这个图型我只有规格、渲染未对接」，给自由构图 / 近似 implemented 两个选项（同第 5 小步）。这是用户自己选的，如实告知**不算静默降级**。
+- 有 selected 且 `[spec-only]` → 原话说明「这个图型我只有规格、渲染未对接」，给自由构图 / 近似 implemented 两个选项（同第 5 小步）。这是用户自己选的，如实告知**不算静默降级**。
+- 有 selected 但**是用户模板**（列表项 `kind:"user"`、`status:"external"`）→ `selection.json` 里带 `origin_file`（绝对路径）和 `usage`。**不要解析这个 Origin 文件、不要量测、不要建 spec**，走已有通道把样式取出来：
+  1. 先 `origin_save_project(临时路径)` 存当前工程（切工程前必须存，见硬坑 9）；
+  2. `origin_labtalk(script="doc -o <origin_file>;")` 打开用户的模板/工程；
+  3. `origin_list_graphs` 找到目标图 → `origin_inspect_graph` 读现状（颜色/线宽/轴/图例）；
+  4. `origin_template_save(graph, template_name="user-<id>")` 存成样式快照；
+  5. 切回本次工程后再 `origin_template_apply(graph, template_name="user-<id>")` 套用。
+  只有 `.oth` 主题不同：本机没有直连 Apply Theme 的通道，如实告诉用户「请在 Origin GUI 里 Apply Theme」，或让他改给 `.otpu` / 工程文件。
 - 有 selected 但与本次数据不匹配（列角色不满足该模板的 `data_contract.md`）→ **不报错、不硬套**：改走自动匹配，同时把建议给出来：
 
   > 你选的 `<id>` 要的是 `<roles>`，这次数据是 `<实际角色>`，套不上。建议用 `<推荐 id>`——缩略图 `templates/evidence/<推荐 id>.png`（页面里是 `/plugins/dsh-plot-clone/thumb/<推荐 id>`），理由是 `<一句话>`。
@@ -247,7 +254,9 @@ python templates_index.py --list
 |---|---|---|
 | **收藏（置顶）** | 用户标了「以后还用」的模板 id，只存 id + 收藏时间，**不复制目录** | 用户（`templates/favorites.json`） |
 | **系统模板** | 随交付发的 49 个（47 个规格来自 editaplot + 2 个本 skill 原生），按 `category` 分组 | 本 skill |
-| **用户模板** | 用户自己存的（一次成功交付后保存），可改可删 | 用户（`templates/user/`） |
+| **用户模板** | 用户上传/保存的 **Origin 文件**（`.otp .otpu .opj .opju .oth`，原件原样复制 + `meta.json`），存在 `~/.dsh/dsh-plot-clone/user-templates/<id>/`，不在仓库里 | 用户（运行时目录） |
+
+用户模板的 `status` 是 `external`——它渲染在 Origin 里，不是我们的通道，所以**不标 implemented、也不标 spec-only**；没有缩略图就显示「无缩略图」，不许拿别人的实拍图顶。
 
 筛选用 `--group system|user|favorites`、`--status implemented|spec-only`。
 
@@ -284,7 +293,11 @@ origin_labtalk(script="plotm im:=[M001]1!1 plot:=105 ogl:=[<new>]!;")           
 
 ### 收尾两个动作（交付成功后再问，不要提前问）
 
-- **存成用户模板**：用户说「这张以后还能用」→ 建 `templates/user/<id>/`：`manifest.yaml`（图型 / dtype / 输出格式）+ `data_contract.md` + `visual_contract.md` + `applicability.md`（什么数据不该用它）+ `artifact.json`（成品图 **sha256 + 路径 + 尺寸**）。**不存数据、不存拟合结果、不存标注文字**；图只存哈希，不把裸图塞进仓库。
+- **存成用户模板**：用户说「保存模板」/「这张以后还能用」→ **不要让他提供图片**，从当前 Origin 里刚改完的那张图存：
+  1. `origin_template_save(graph, template_name="<名字>")` 存样式快照（`.otpu` 的 save 通道在这台机器上不可靠，快照才是稳的）；
+  2. `origin_save_project("<临时>/figure.opju")` 把工程存下来作可追溯原件；
+  3. `node make_user_template.mjs --from <figure.opju> --name "<名字>" --category "user/<分类>"` 把它收进 `~/.dsh/dsh-plot-clone/user-templates/<id>/`（原件原样复制 + `meta.json` 记 sha256/尺寸/原始文件名）。
+  **快照只含样式，不含数据**——这句话要跟用户说一次。仓库零污染：用户模板只写运行时目录，`templates/` 里不新增任何东西；删除只动那个 `<id>` 目录。
 - **收藏**：用户说「收藏」→ 只往 `templates/favorites.json` 加 `{"id": "...", "added_at": "..."}`，**不复制目录**（复制就有两份源，改一份忘一份）。
 
 ## 第 5 步：图元 → Origin 通道（照着查，别自己发明）
