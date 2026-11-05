@@ -222,7 +222,8 @@ python templates_index.py --selected
   3. `origin_list_graphs` 找到目标图 → `origin_inspect_graph` 读现状（颜色/线宽/轴/图例）；
   4. `origin_template_save(graph, template_name="user-<id>")` 存成样式快照；
   5. 切回本次工程后再 `origin_template_apply(graph, template_name="user-<id>")` 套用。
-  只有 `.oth` 主题不同：本机没有直连 Apply Theme 的通道，如实告诉用户「请在 Origin GUI 里 Apply Theme」，或让他改给 `.otpu` / 工程文件。
+  **`.oth` 主题文件不同，而且禁止 `doc -o` 打开它**（实测会把当前工程清空：`origin_list_graphs` 回 `[]`、`page.name$` 回读字面量；磁盘文件不动，但内存里打开的工程没了，见硬坑 14）。`.oth` 只能让用户在 Origin GUI 的 Theme Manager 里 Apply，或请他改给 `.otpu` / 工程文件。
+  `.otp` / `.otpu` 走的是「用模板新建一个图页」，新页会有图页但**0 条曲线**（模板只存格式，不存数据）：轴标题、轴范围、图层几何、图例位置能读能存，曲线颜色/线宽/符号取不到——要套样式就等数据画上去后再 `origin_template_apply`。
 - 有 selected 但与本次数据不匹配（列角色不满足该模板的 `data_contract.md`）→ **不报错、不硬套**：改走自动匹配，同时把建议给出来：
 
   > 你选的 `<id>` 要的是 `<roles>`，这次数据是 `<实际角色>`，套不上。建议用 `<推荐 id>`——缩略图 `templates/evidence/<推荐 id>.png`（页面里是 `/plot-clone/thumb/<推荐 id>`），理由是 `<一句话>`。
@@ -399,6 +400,10 @@ origin_labtalk(script="plotm im:=[M001]1!1 plot:=105 ogl:=[<new>]!;")           
 11. **面积/峰渐变实测通道（2026-10-23 验证）**：优先用 `origin_edit_plot` 的 `fill_mode/fill_top_color/fill_bottom_color/fill_to`（dsh-origin 插件 2.7.4+ 已封装，等价于下面的 set 命令，status=applied_unverified 属正常）；插件不可用或需别的 set 选项时，才走 `layer.plot = N` 选第 N 条曲线后 `set %C -pf 1; set %C -pfm 3; set %C -pfb color(R,G,B); set %C -pff color(255,255,255);`，导出取样=顶部饱和、底部褪白，色带按整个绘图区高度线性插值。填充下边界固定为**轴下限**（`-pf 2` 不改），偏移基线谱会被色带糊到轴底——必须后叠白遮罩（值=背景列−Δ，`-pfm 0` 纯白填到轴底）再画基线与数据。
 12. **COM 报 `<built-in function ApplicationBase_Path> returned a result with an exception set` = 会话中毒**：诱因是 `origin_labtalk` 里跑带 `$()` 的 `type` 命令、或渐变设色与导出挤在同一批调用。救法=先 `origin_release`，下个调用自动重连（`origin_status` 恢复 ok）；**但 release 会丢掉当前工程**（`list_pages` 变空），所以每次改动前先 `origin_save_project`，救回后 `doc -o 该 opju` 重开。release 救不回时再重启 Origin。
 13. **字号/点径只有两条通道，别瞎试**：刻度标签字号=`origin_edit_axis(axis="x", props={label_font_pt:11})`（读回 `x.label.fsize`）；轴标题字号=`layer.x.label.pt`；**`layer.x.pt`/`layer.y.pt` 不是刻度字号（设了静默无效）**；散点= `origin_edit_plot(edits=[{plot:i, symbol_size:..}])`，参照 `symbol_size`≈1.0 @1800 px 宽 ≈ 4~5 px 点径（参考图 0.3% 绘图宽）——1.5 偏粗、0.8 几乎看不见。
+14. **禁止 `doc -o` 一个 `.oth`**（2026-11-05 实测）：`origin_labtalk("doc -o ...No Axis Line.oth")` 之后 `origin_list_graphs` 回 `[]`、`page.name$` 读回字面量 `page.name$`——当前工程被清空，只有磁盘上的 `.opju` 还在。`.oth` 只走 GUI Apply Theme，或让用户改给 `.otpu`（`.otp/.otpu/.opj/.opju` 都能 `doc -o`，实测四种都正常出图页/工程）。
+15. **`origin_list_pages` 的 `graphs` 字段恒为 `[]`、detail 恒写「图页 0」**（2026-11-05 实测，与 `origin_list_graphs` 返回 1/4/5 个矛盾）：判断有没有图页只用 `origin_list_graphs`，别信 `list_pages` 的计数。
+16. **`origin_status.origin_exe` 可能报错版本**（2026-11-05 实测报 `Origin2026b`，本机只有 `C:\Program Files\OriginLab\Origin2025b\`，进程标题是 `… - OriginPro 2025b`）：以安装目录/进程标题为准，别拿这个字段写进报告当版本结论。
+17. **批量导出/建页后弹 `#32770`「注意! 可能创建了太多GDI对象…」会卡死 COM**（2026-11-05 连撞 3 次）：模态框只有「确定」，期间所有 COM 调用 60s 超时；`PostMessage(hwnd, 0x00F5, 0, 0)`（BM_CLICK）点掉即恢复，但批量导出后最好直接重启 Origin。
 
 ## 备注
 - 参数、错误码、失败恢复动作全在 **origin-plotting** skill；本 skill 只管"参考图 → 参数"。
