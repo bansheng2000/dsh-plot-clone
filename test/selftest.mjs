@@ -638,12 +638,33 @@ function httpSend(url, method, body, headers = {}) {
     inject: (names, cb) =>
       cb({ get: (n) => (n === "sidebarRightTabs" ? { register: (spec) => { types.push(spec); return () => {}; } } : undefined) }),
   });
-  assert.equal(types.length, 1, "tab type 只能注册 1 条");
-  assert.equal(types[0].id, "dsh-plot-clone/templates");
-  assert.equal(types[0].kind, types[0].id, "tab 的 kind 必须等于 id——宿主按 kind 查内容体，不等就是空白面板");
-  assert.equal(types[0].title(), "模板");
-  assert.deepEqual(slotRegs.map((r) => r.name), ["sidebar.right.pane.tab", "sidebar.right.pane.tab.title"]);
-  assert.ok(slotRegs.every((r) => r.key === types[0].kind), "slot key 必须等于 tab 的 kind（内容体按 kind 查，不是按 id）");
+  assert.equal(types.length, 2, "tab type 必须注册 2 条：主类型 + kind 兼容别名（旧标签自愈）");
+  const main = types.find((t) => t.kind === plugin.TAB_KIND);
+  const compat = types.find((t) => t.kind === "plot-clone-templates");
+  assert.ok(main !== undefined, "主类型缺失");
+  assert.equal(main.id, "dsh-plot-clone/templates");
+  assert.equal(main.kind, main.id, "tab 的 kind 必须等于 id——宿主按 kind 查内容体，不等就是空白面板");
+  assert.equal(main.title(), "模板");
+  assert.ok(Array.isArray(main.guide) && main.guide.length > 0, "主类型要有 guide（「+」菜单入口）");
+  assert.ok(compat !== undefined, "缺 kind 兼容别名：旧标签实例存的是 plot-clone-templates，找不到定义就渲染 tab.unavailable");
+  assert.equal(compat.id, plugin.COMPAT_ID, "别名 id 必须与主 id 不同，否则覆盖主类型");
+  assert.equal("guide" in compat, false, "别名不许给 guide，否则「+」菜单会多一个入口");
+  assert.equal(compat.title(), "模板");
+
+  // 模拟宿主真实查找：按 tab 实例的 kind 找定义，再用 definition.id 查槽位。
+  const kinds = types.map((t) => ({ id: t.id, kind: t.kind }));
+  const legacyFound = kinds.find((k) => k.kind === "plot-clone-templates");
+  assert.equal(legacyFound.id, plugin.COMPAT_ID, "旧 kind 必须解析到别名 id");
+  const slotKeys = new Set(slotRegs.map((r) => r.key));
+  assert.equal(slotKeys.has(legacyFound.id), true, `别名 id 必须在槽位表里存在，实际 ${[...slotKeys].join(",")}`);
+  assert.equal(kinds.find((k) => k.kind === plugin.TAB_KIND).id, plugin.TAB_ID, "新 kind 仍必须解析到主 id");
+
+  assert.deepEqual(
+    slotRegs.map((r) => r.name),
+    ["sidebar.right.pane.tab", "sidebar.right.pane.tab.title", "sidebar.right.pane.tab", "sidebar.right.pane.tab.title"],
+  );
+  assert.deepEqual(slotRegs.map((r) => r.key), [plugin.TAB_ID, plugin.TAB_ID, plugin.COMPAT_ID, plugin.COMPAT_ID], "两个 key 各挂内容体与标题");
+  assert.ok(slotRegs.every((r) => kinds.some((k) => k.id === r.key)), "slot key 必须等于某个已注册 tab type 的 id（内容体按 kind→id 查）");
 
   // 老宿主：service / slots 各种缺失都不许抛
   let threw = null;
@@ -658,8 +679,8 @@ function httpSend(url, method, body, headers = {}) {
   assert.equal(threw, null, `老宿主不许抛异常炸侧栏，实际：${threw && threw.message}`);
 
   ok(
-    "侧栏标签：假宿主里 apply 注册 tab type + 2 slots，老宿主不抛",
-    `types=${types.length} slots=${slotRegs.length} key=${types[0].id}`,
+    "侧栏标签：假宿主里 apply 注册主类型 + kind 兼容别名（4 槽位），旧 kind 能解析、别名无 guide，老宿主不抛",
+    `types=${types.length}(${types.map((t) => t.kind).join("|")}) slots=${slotRegs.length} legacy→${legacyFound.id}`,
   );
 }
 
