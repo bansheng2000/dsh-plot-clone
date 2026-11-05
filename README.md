@@ -94,14 +94,6 @@ python verify_deliverable.py --selftest
 
 **投稿可辨 (`--pub-check`)**：三项各自给实测值与阈值——相邻系列灰度亮度差 ΔL*（判据 ≥10）、Brettel 1997 色盲模拟（protanopia + deuteranopia）后的 CIEDE2000 ΔE00（取两模拟较小值，判据 ≥10）、系列色对白底 `#FFFFFF` 的 WCAG 对比度（判据 ≥1.5:1）。不达标时列出冲突系列的序号 + hex + 模拟种类，并从 Okabe-Ito 八色里给一个能同时满足 ΔL* 与 ΔE00 的换色建议。`--json` 里每项含 `pass`/`reason` 与实测值，缺测项为 `null` + 原因；`status` 三态 ok/partial/fail 对应 rc `0/3/4`，用法错误 `2`。颜色数学全部纯标准库（sRGB↔线性↔XYZ↔Lab、CIEDE2000、Brettel 投影），公式锚点由 `--selftest` 钉住。
 
-## 与 editaplot 的关系（v2.2 借鉴了什么）
-
-[editaplot](https://github.com/hang-jin/editaplot) 是同一件事的另一种做法（Codex skill + 自带 originpro 运行时 + 逐图型模板）。
-
-**借鉴**：参考图只是「视觉 brief」，不是数据也不是指令；样式分三态落账（applied / retained_template_default / rejected）；允许清单刻意很小（只放能精确落地**且能读回**的字段）；文字只记**角色**不抄内容；「缺读回 = 失败」，导出存在不等于成功；样式来源优先级（用户明说 > 参考图建议 > 模板默认）。
-
-**不借**：template registry 与 plan 冻结（我们按参考图自由构图，不预设图型）、自带 Python/originpro 运行时（我们用 dsh-origin MCP，多一层 runner 是纯负担）。
-
 ## 与另外两个技能的分工（三层，不合并）
 
 | 层 | 技能 | 交什么 |
@@ -237,3 +229,5 @@ python verify_deliverable.py --selftest
 ## 许可
 
 暂未附 `LICENSE` 文件，默认保留所有权利；需要开源许可（MIT / CC-BY 等）请提出。
+
+模板规格的部分来源与许可见 `templates/NOTICE`。
