@@ -521,6 +521,7 @@ function httpGet(url, method = "GET", body) {
     const effects = [];
     let idx = 0;
     let dirty = false;
+    let effectsDone = false;
     const sandbox = {
       window: {},
       document: { getElementById: () => null, head: { appendChild: () => {} }, createElement: () => ({}) },
@@ -552,7 +553,14 @@ function httpGet(url, method = "GET", body) {
     const render = async () => {
       idx = 0;
       let tree = plugin.TemplatesPanel({});
-      for (const fn of effects.splice(0)) await fn();   // 只跑首轮 effect（deps: []）
+      // 只跑首轮 effect（deps: []）——组件每次渲染都会把 effect 重新 push 进来，
+      // 每次都跑的话后到的读 selection 会把刚点过的收藏覆盖回空值。
+      if (!effectsDone) {
+        effectsDone = true;
+        for (const fn of effects.splice(0)) await fn();
+      } else {
+        effects.length = 0;
+      }
       for (let round = 0; round < 8; round += 1) {
         await new Promise((r) => setTimeout(r, 0));
         if (dirty === false) break;
@@ -588,12 +596,17 @@ function httpGet(url, method = "GET", body) {
     channels: ["origin_plot:line"],
     thumb: i < 9 ? `/plugins/dsh-plot-clone/thumb/tpl-${i}` : null,
   }));
-  const okFetch = async (url) => ({
+  const okFetch = async (url, init) => ({
     ok: true,
     status: 200,
-    json: async () => (url.endsWith("/templates")
-      ? { ok: true, templates: items }
-      : { ok: true, selected: null, favorites: [] }),
+    json: async () => {
+      if (url.endsWith("/templates")) return { ok: true, templates: items };
+      if (init !== undefined && typeof init.body === "string") {
+        const body = JSON.parse(init.body);
+        return { ok: true, selected: body.selected ?? null, favorites: body.favorites ?? [] };
+      }
+      return { ok: true, selected: null, favorites: [] };
+    },
   });
   const badFetch = async () => ({ ok: false, status: 404, json: async () => { throw new Error("no body"); } });
 
@@ -606,8 +619,66 @@ function httpGet(url, method = "GET", body) {
   assert.ok(!goodText.includes("undefined"), "渲染结果里不许出现 undefined");
   assert.ok(goodText.includes("无实拍 / 仅规格，渲染未对接"), "spec-only 卡片必须显示「无实拍」");
 
-  const bad = mount(badFetch);
-  const badText = textOf(await bad.render()).join(" ");
+  // 筛选三档按「来源」：全部 / 预设 / 收藏（status 只做徽标，不许占筛选位）。
+  const allNodes = (node, out = []) => {
+    if (node === null || node === undefined || typeof node !== "object") return out;
+    if (Array.isArray(node)) { for (const c of node) allNodes(c, out); return out; }
+    out.push(node);
+    allNodes(node.children, out);
+    return out;
+  };
+  const clickChip = async (mounted, label) => {
+    const btn = allNodes(await mounted.render()).find(
+      (n) => n.type === "button" && textOf(n).join("").trim().startsWith(label),
+    );
+    assert.ok(btn !== undefined, `找不到筛选按钮「${label}」`);
+    btn.props.onClick();
+    const next = await mounted.render();
+    return { text: textOf(next).join(" "), cards: nodesWith(next, "data-template-id").length };
+  };
+  assert.ok(
+    goodText.includes("全部 49") && goodText.includes("预设 49") && goodText.includes("收藏 0"),
+    `筛选位必须是 全部/预设/收藏，实际：${goodText.slice(0, 90)}`,
+  );
+  const fAll = await clickChip(good, "全部");
+  const fPre = await clickChip(good, "预设");
+  const fFav = await clickChip(good, "收藏");
+  assert.equal(fAll.cards, 49, `「全部」应 49 张，实际 ${fAll.cards}`);
+  assert.equal(fPre.cards, 49, `「预设」应 49 张（缺 kind 按 system），实际 ${fPre.cards}`);
+  assert.equal(fFav.cards, 0, `「收藏」空时应 0 张，实际 ${fFav.cards}`);
+  assert.ok(
+    fFav.text.includes("还没有收藏的模板"),
+    `收藏为空必须有空态文案，实际：${fFav.text.slice(0, 140)}`,
+  );
+
+  // 收藏是活的：点一个 ★ 之后「收藏」计数与筛选结果都要立刻变。
+  await clickChip(good, "全部");
+  const star = allNodes(await good.render()).find(
+    (n) => n.type === "button" && textOf(n).join("").includes("☆"),
+  );
+  assert.ok(star !== undefined, "找不到收藏星标按钮");
+  star.props.onClick();
+  await new Promise((r) => setTimeout(r, 20));
+  const favText = textOf(await good.render()).join(" ");
+  assert.ok(favText.includes("收藏 1"), `收藏后计数必须实时变 1，实际：${favText.slice(0, 100)}`);
+  const favOne = await clickChip(good, "收藏");
+  assert.equal(favOne.cards, 1, `收藏后「收藏」筛选应 1 张，实际 ${favOne.cards}`);
+
+  // 将来有用户模板：按 kind 分类，user 不许混进「预设」。
+  const mixed = items.map((t, i) => ({ ...t, kind: i === 0 ? "user" : "system" }));
+  const mix = mount(async (url) => ({
+    ok: true,
+    status: 200,
+    json: async () => (url.endsWith("/templates")
+      ? { ok: true, templates: mixed }
+      : { ok: true, selected: null, favorites: [] }),
+  }));
+  const mixText = textOf(await mix.render()).join(" ");
+  assert.ok(mixText.includes("预设 48"), `user 模板不许算进预设，实际：${mixText.slice(0, 90)}`);
+  assert.ok(mixText.includes("用户"), "用户模板卡片必须标「用户」");
+  assert.equal((await clickChip(mix, "预设")).cards, 48, "「预设」应排除 user 模板");
+
+  const bad = mount(badFetch);  const badText = textOf(await bad.render()).join(" ");
   const badCards = nodesWith(await bad.render(), "data-template-id");
   assert.ok(badText.includes("HTTP 404"), `列表拉不到时必须渲染错误文案，实际文本：${badText.slice(0, 160)}`);
   assert.equal(badCards.length, 0, `拉不到列表时不许有卡片，实际 ${badCards.length}`);
@@ -631,9 +702,9 @@ function httpGet(url, method = "GET", body) {
   assert.equal(body.Component, good.plugin.TemplatesPanel, "内容体必须就是能渲染出 49 条的 TemplatesPanel");
 
   ok(
-    "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案",
-    `cards=${cards.length} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind}`,
+    "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选三档",
+    `cards=${cards.length} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fFav.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind}`,
   );
 }
 
-console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 侧栏标签契约 / 侧栏 apply / 标签真渲染）`);
+console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选三档）`);
