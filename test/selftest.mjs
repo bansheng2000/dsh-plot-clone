@@ -594,18 +594,43 @@ function httpSend(url, method, body, headers = {}) {
     assert.equal(big.code, "too-large");
     assert.match(big.message, /64 MB/);
 
-    // 删除必须回落：列表回到 49、选中清空、目录消失
+    // 先把它收藏起来：删除时必须同时从 favorites 摘掉（否则「收藏」档留一张点不开的卡）
+    const favBefore = await httpSend(
+      `${base}/selection`,
+      "POST",
+      Buffer.from(JSON.stringify({ favorites: ["bar", created.id] })),
+      { "content-type": "application/json" },
+    );
+    assert.equal(favBefore.status, 200);
+    assert.deepEqual(
+      JSON.parse(favBefore.body.toString("utf8")).favorites,
+      ["bar", created.id],
+      "收藏必须能带用户模板 id",
+    );
+
+    // 删除必须回落：列表回到 49、选中清空、收藏摘掉、目录消失
     const del = await httpSend(`${base}/user-templates/${created.id}`, "DELETE");
     assert.equal(del.status, 200);
+    const delBody = JSON.parse(del.body.toString("utf8"));
+    assert.deepEqual(
+      delBody.selection.favorites,
+      ["bar"],
+      "删除必须同时从 favorites 摘掉该 id（系统模板的收藏不许被牵连）",
+    );
     const after = JSON.parse((await httpGet(`${base}/templates`)).body.toString("utf8"));
     assert.equal(after.count, 49);
     assert.equal(after.user, 0);
     const afterSel = JSON.parse((await httpGet(`${base}/selection`)).body.toString("utf8"));
     assert.equal(afterSel.selected, null, "删掉选中的用户模板必须回落，不许留幽灵选中");
+    assert.deepEqual(
+      afterSel.favorites,
+      ["bar"],
+      "删掉的用户模板必须从 selection.json 的 favorites 里消失（一次写盘，不许留 dangling 收藏）",
+    );
     assert.equal(existsSync(join(root, created.id)), false);
 
     ok(
-      "用户模板：上传 +1 / 原件字节一致 / meta sha256 一致 / 选中带 origin_file / 改名 / 拒绝 png / 超限 / 删除回落",
+      "用户模板：上传 +1 / 原件字节一致 / meta sha256 一致 / 选中带 origin_file / 改名 / 拒绝 png / 超限 / 删除回落且摘收藏",
       `id=${created.id} size=${bytes.length}B sha=${meta.sha256.slice(0, 12)}… count=${after.count}`,
     );
   });

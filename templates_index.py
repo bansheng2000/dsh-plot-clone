@@ -96,8 +96,12 @@ def paths_for(root):
 # ───────────────────────── 五条断言 ─────────────────────────
 
 
-def check_index(root):
-    """返回 (rc, lines)。lines 是给人和脚本看的逐条结果。"""
+def check_index(root, env=None):
+    """返回 (rc, lines)。lines 是给人和脚本看的逐条结果。
+
+    env 只在传了的时候才去查 selection.json 的收藏（页面写的那份偏好）；
+    不传就只看仓库里的 favorites.json —— 自检用临时目录跑，绝不能读用户真实偏好。
+    """
     p = paths_for(root)
     lines = []
 
@@ -176,6 +180,21 @@ def check_index(root):
             dangling += 1
             issues.append("dangling favorite: %s 不在 index 里（收藏不许指向不存在的模板）" % fid)
 
+    # 4b：页面写的 selection.json 收藏同样不许悬空。
+    # 用户模板不在 index.json 里（它在 runtime 目录），所以已知集合 = index ids + user-templates/<id>/。
+    selection_favorites = 0
+    if env is not None:
+        sel = read_selection(env)
+        known = ids | user_template_ids(env)
+        for fid in sel["favorites"]:
+            selection_favorites += 1
+            if fid not in known:
+                dangling += 1
+                issues.append(
+                    "dangling favorite: %s 在 selection.json 的 favorites 里，但既不是 index 模板也不是用户模板"
+                    "（删模板必须同时摘收藏）" % fid
+                )
+
     # 5：通道白名单
     channel_count = 0
     for tpl in templates:
@@ -203,7 +222,7 @@ def check_index(root):
     # 汇总
     lines.append("CHECK evidence   implemented=%d  spec-only=%d" % (implemented, spec_only))
     lines.append("CHECK path       system=%d" % system_count)
-    lines.append("CHECK favorite   favorites=%d  dangling=%d" % (len(favorites), dangling))
+    lines.append("CHECK favorite   favorites=%d  selection=%d  dangling=%d" % (len(favorites), selection_favorites, dangling))
     lines.append("CHECK channel    channels=%d  whitelist=%d" % (channel_count, len(CHANNEL_WHITELIST)))
 
     if issues:
@@ -388,6 +407,42 @@ def selftest():
         _write(root, {"schema_version": 1, "templates": [_tpl(status="done")]}, [])
     run_case("M6 非法 status", m6, "bad status", RC_FAIL)
 
+    # 变异 7：页面写的 selection.json 收藏悬空（「删模板只清 selected」的后果）
+    def m7():
+        root = tempfile.mkdtemp(prefix="tplidx-sel-fav-")
+        home = tempfile.mkdtemp(prefix="tplidx-home-")
+        try:
+            _baseline(root)
+            env = {"DSH_HOME": home}
+            sp = selection_path(env)
+            os.makedirs(os.path.dirname(sp))
+            with io.open(sp, "w", encoding="utf-8") as fh:
+                json.dump({"selected": None, "favorites": ["bar", "ghost"]}, fh, ensure_ascii=False)
+            rc, lines = check_index(root, env=env)
+            text = "\n".join(lines)
+            good = rc == RC_FAIL and "dangling favorite" in text and "ghost" in text
+            checks.append(("M7 selection.json 收藏悬空", rc, RC_FAIL, "dangling favorite", "dangling favorite" in text, good))
+            if not good:
+                failures.append("M7: rc=%s text=%s" % (rc, text))
+
+            # 用户模板不算悬空：favorites 里放一个真实存在的 user-templates/<id>/meta.json 必须 PASS
+            ut = os.path.join(home, "dsh-plot-clone", "user-templates", "tpl-user001")
+            os.makedirs(ut)
+            with io.open(os.path.join(ut, "meta.json"), "w", encoding="utf-8") as fh:
+                json.dump({"id": "tpl-user001"}, fh, ensure_ascii=False)
+            with io.open(sp, "w", encoding="utf-8") as fh:
+                json.dump({"selected": None, "favorites": ["bar", "tpl-user001"]}, fh, ensure_ascii=False)
+            rc2, lines2 = check_index(root, env=env)
+            good2 = rc2 == RC_OK and "selection=2" in "\n".join(lines2)
+            checks.append(("M7b 用户模板收藏不误报", rc2, RC_OK, "selection=2", "selection=2" in "\n".join(lines2), good2))
+            if not good2:
+                failures.append("M7b: rc=%s text=%s" % (rc2, "\n".join(lines2)))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+            shutil.rmtree(home, ignore_errors=True)
+
+    m7()
+
     # 选中查询（--selected）：三个分支必须各自说清，不许含糊
     def sel_case(label, selected, expect_kw, spec_only=False):
         root = tempfile.mkdtemp(prefix="tplidx-sel-")
@@ -425,7 +480,7 @@ def selftest():
         for f in failures:
             print("  " + f)
         return 1
-    print("\nselftest ok: %d/%d（1 条基线 + 7 条变异 + 3 条 --selected 分支，全部按预期 rc 与关键词判定）" % (len(checks), len(checks)))
+    print("\nselftest ok: %d/%d（1 条基线 + 8 条变异 + 3 条 --selected 分支，全部按预期 rc 与关键词判定）" % (len(checks), len(checks)))
     return 0
 
 
@@ -437,6 +492,18 @@ def selection_path(env=None):
     env = env if env is not None else os.environ
     home = env.get("DSH_HOME") or os.path.join(env.get("USERPROFILE") or os.path.expanduser("~"), ".dsh")
     return os.path.join(home, "dsh-plot-clone", "selection.json")
+
+
+def user_template_ids(env=None):
+    """用户模板 id：<state>/dsh-plot-clone/user-templates/<id>/meta.json（与 lib/user_templates.js 同口径）。"""
+    env = env if env is not None else os.environ
+    home = env.get("DSH_HOME") or os.path.join(env.get("USERPROFILE") or os.path.expanduser("~"), ".dsh")
+    base = os.path.join(home, "dsh-plot-clone", "user-templates")
+    try:
+        names = os.listdir(base)
+    except OSError:
+        return set()
+    return {n for n in names if os.path.isfile(os.path.join(base, n, "meta.json"))}
 
 
 def read_selection(env=None):
@@ -521,7 +588,7 @@ def main(argv=None):
     if args.selftest:
         return selftest()
     if args.check:
-        rc, lines = check_index(root)
+        rc, lines = check_index(root, env=os.environ)
         print("\n".join(lines))
         return rc
     if args.selected:
