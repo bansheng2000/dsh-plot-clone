@@ -388,6 +388,33 @@ def selftest():
         _write(root, {"schema_version": 1, "templates": [_tpl(status="done")]}, [])
     run_case("M6 非法 status", m6, "bad status", RC_FAIL)
 
+    # 选中查询（--selected）：三个分支必须各自说清，不许含糊
+    def sel_case(label, selected, expect_kw, spec_only=False):
+        root = tempfile.mkdtemp(prefix="tplidx-sel-")
+        home = tempfile.mkdtemp(prefix="tplidx-home-")
+        try:
+            _baseline(root)
+            tpl = _tpl(status="spec-only", gap="通道未对接", status_evidence=None) if spec_only else _tpl()
+            _write(root, {"schema_version": 1, "templates": [tpl]}, [])
+            env = {"USERPROFILE": home, "DSH_HOME": ""}
+            p = selection_path(env)
+            os.makedirs(os.path.dirname(p))
+            with io.open(p, "w", encoding="utf-8") as fh:
+                json.dump({"selected": selected, "favorites": []}, fh, ensure_ascii=False)
+            rc, lines = selected_report(root, env)
+            text = "\n".join(lines)
+            good = rc == RC_OK and expect_kw in text
+            checks.append((label, rc, RC_OK, expect_kw, expect_kw in text, good))
+            if not good:
+                failures.append("%s: rc=%s kw=%r text=%s" % (label, rc, expect_kw, text))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+            shutil.rmtree(home, ignore_errors=True)
+
+    sel_case("S1 选中 implemented", "bar", "按用户选择做")
+    sel_case("S2 选中 spec-only", "bar", "只有规格、渲染未对接", spec_only=True)
+    sel_case("S3 选中过期 id", "ghost", "过期选择")
+
     print("templates_index selftest")
     for label, rc, expect_rc, kw, hit, good in checks:
         print("  %-34s rc=%d (expect %d) kw=%r hit=%s -> %s"
@@ -398,8 +425,81 @@ def selftest():
         for f in failures:
             print("  " + f)
         return 1
-    print("\nselftest ok: %d/%d（1 条基线 + 7 条变异，全部按预期 rc 与关键词判定）" % (len(checks), len(checks)))
+    print("\nselftest ok: %d/%d（1 条基线 + 7 条变异 + 3 条 --selected 分支，全部按预期 rc 与关键词判定）" % (len(checks), len(checks)))
     return 0
+
+
+# ───────────────────────── 选中的模板（插件页面写的偏好） ─────────────────────────
+
+
+def selection_path(env=None):
+    """与插件 `lib/templates.js:selectionPath` 同口径：<DSH_HOME 或 %USERPROFILE%\\.dsh>\\dsh-plot-clone\\selection.json"""
+    env = env if env is not None else os.environ
+    home = env.get("DSH_HOME") or os.path.join(env.get("USERPROFILE") or os.path.expanduser("~"), ".dsh")
+    return os.path.join(home, "dsh-plot-clone", "selection.json")
+
+
+def read_selection(env=None):
+    path = selection_path(env)
+    try:
+        raw = load_json(path)
+    except (IOError, OSError, ValueError):
+        return {"selected": None, "favorites": [], "path": path, "exists": False}
+    if not isinstance(raw, dict):
+        return {"selected": None, "favorites": [], "path": path, "exists": True}
+    sel = raw.get("selected")
+    fav = raw.get("favorites")
+    return {
+        "selected": sel if isinstance(sel, str) else None,
+        "favorites": [x for x in fav if isinstance(x, str)] if isinstance(fav, list) else [],
+        "path": path,
+        "exists": True,
+    }
+
+
+def selected_report(root, env=None):
+    """--selected：只说「用户选了谁、这条能不能用」，不做自动匹配。
+
+    选中只是偏好：这里绝不因为 selected 而对数据做判断，只把事实交给流程。
+    返回 (rc, lines)；rc 恒为 0（这是查询，不是校验）。
+    """
+    sel = read_selection(env)
+    lines = []
+    if not sel["exists"]:
+        lines.append("SELECTED none（没有 selection.json：%s）→ 走自动匹配" % sel["path"])
+        return RC_OK, lines
+
+    sid = sel["selected"]
+    if not sid:
+        lines.append("SELECTED none（用户没点「用这个」）→ 走自动匹配")
+        if sel["favorites"]:
+            lines.append("FAVORITES %s" % ", ".join(sel["favorites"]))
+        return RC_OK, lines
+
+    try:
+        index = load_json(paths_for(root)["index"])
+    except (IOError, OSError, ValueError):
+        lines.append("SELECTED %s（索引读不到，无法判定这条模板是否可用）" % sid)
+        return RC_OK, lines
+
+    by_id = {t.get("id"): t for t in index.get("templates", []) if isinstance(t, dict)}
+    t = by_id.get(sid)
+    if t is None:
+        lines.append("SELECTED %s（索引里没有这个 id → 过期选择，走自动匹配并告知用户）" % sid)
+        return RC_OK, lines
+
+    status = t.get("status")
+    thumb = os.path.join(paths_for(root)["templates"], "evidence", sid + ".png")
+    thumb_txt = "templates/evidence/%s.png" % sid if os.path.exists(thumb) else "null（无实拍）"
+    lines.append("SELECTED %s  %s  [%s]  thumb=%s" % (sid, t.get("name_zh") or sid, status, thumb_txt))
+    if status == "implemented":
+        ch = (t.get("renderer") or {}).get("channel") or []
+        lines.append("  → 按用户选择做：channel=%s；读同目录 data_contract.md / visual_contract.md 当默认值" % (", ".join(ch) or "?"))
+    else:
+        lines.append("  → 只有规格、渲染未对接（gap: %s）；必须原话说明，不许静默降级" % (t.get("gap") or "未写"))
+    if sel["favorites"]:
+        lines.append("FAVORITES %s" % ", ".join(sel["favorites"]))
+    return RC_OK, lines
 
 
 # ───────────────────────── CLI ─────────────────────────
@@ -409,6 +509,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="模板索引机器闸门（--check / --list / --selftest）")
     ap.add_argument("--check", action="store_true", help="校验 index.json（5 条断言）")
     ap.add_argument("--list", action="store_true", help="列出三类模板")
+    ap.add_argument("--selected", action="store_true", help="只读：用户选中的模板（插件页面写的偏好）")
     ap.add_argument("--selftest", action="store_true", help="自检（变异必须真红）")
     ap.add_argument("--group", default="all", choices=GROUPS, help="--list 的分组")
     ap.add_argument("--status", default=None, choices=STATUSES, help="--list 只列某档 status")
@@ -421,6 +522,10 @@ def main(argv=None):
         return selftest()
     if args.check:
         rc, lines = check_index(root)
+        print("\n".join(lines))
+        return rc
+    if args.selected:
+        rc, lines = selected_report(root)
         print("\n".join(lines))
         return rc
     if args.list:

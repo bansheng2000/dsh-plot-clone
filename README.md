@@ -37,6 +37,7 @@
 - **交付物固定三种格式**：PNG（≥1800 宽）+ PDF + OPJU（可在 Origin 里继续编辑）；缺一件不算交付，交付里同时写明数据文件路径与列名，逐列可追溯。交付前先跑 `verify_deliverable.py` 做文件层硬检查（存在/非空/同 basename/宽度），再用 `origin_verify_graph` 查对象层。
 - **交付前 17 条自检**：颜色必须等于卡上 hex（像素验过，不是「差不多」）、填充形态与下边界、装饰带高度 = 量测值、页面尺寸与图层几何、verify 无 fail、数据可追溯、三格式齐等。
 - **上游委派接口**：被领域 SOP（如 `dsh-xps-peakfit`）委派时只接风格对齐这一段——按上游系列清单建 series、不改数值、不润色标注文本、上游禁止项从严执行；回给上游规格卡 + 差量表 + 交付路径。**只有版面约束、没有参考图时不套复刻流程**，转 `origin-plotting` 常规建图。
+- **模板只是加速器**：49 个模板（9 `implemented` / 40 `spec-only`）上面有三道闸——`--check` 验证据、`--selected` 读用户选的、命中后按 `renderer.channel` 走。用户在页面上选过的模板**优先**，但列角色对不上就改自动匹配并给「推荐 id + 缩略图」，不硬套、不报错；`spec-only` 必须原话报 gap，绝不静默降级成自由构图。
 
 ## 文件
 
@@ -49,7 +50,10 @@
 | `figure_metrics.py` | 参考图 ↔ 成品图**量化并排对照**：外框 %、面板数（多面板逐面板输出）、装饰带高/绘图高（纯色/渐变）、白缝 %、刻度长、文字行与字高（label/title）、点径、主色——收敛循环每轮回跑它；`--json`（缺测项落 `null` + `<字段>_reason`，`status` 三态 ok/partial/none 对应 rc 0/3/4）、`--band-hex`/`--dot-hex`/`--dark`、`--selftest`；投稿级可辨性 `--pub-check`（灰度 ΔL*≥10 / 色盲 ΔE00≥10 / 白底对比度≥1.5:1，逐项给实测值与阈值；`--series-color "#hex,..."` 可显式指定，否则从主色提） |
 | `verify_deliverable.py` | **交付三件套文件层检查**（不读 Origin 对象属性，那是 `origin_verify_graph` 的活）：三个文件存在且非空、三者同 basename、PNG 宽 ≥ `--min-width`（默认 1800）；逐项 PASS/FAIL，rc 0 全过 / 4 有 FAIL / 2 用法错误；`--selftest` 用临时文件造「缺文件 / basename 不一致 / 宽度不够 / 全过」四种场景断言 |
 | `test_synth.py` | **合成真值自检**：画出几何已知的图（框位置、20px 带、渐变带、1x/2x/4x 刻度、d=10/20 点径、已知字高、2px 细线、半宽面板、双面板），对三个脚本的读数逐项断言（29 条，公差 ±1px/±2%）。改量测代码先跑它 |
-| `templates_index.py` | **模板索引的机器闸门**：`--check` 五条断言（implemented 必须有实测证据文件且非空 / spec-only 必须有 `gap` / system 模板 path 必须在 `templates/system/` 下 / 收藏不许悬空 / `renderer.channel` 的工具名与变体必须在白名单），rc 0 全过 / 1 有 FAIL / 2 索引缺失；`--list` 按「收藏置顶 → 系统按图型分组 → 用户」列三类；`--selftest` 八条变异全部必须真红。**没证据的 implemented 过不了这道闸** |
+| `templates_index.py` | **模板索引的机器闸门**：`--check` 五条断言（implemented 必须有实测证据文件且非空 / spec-only 必须有 `gap` / system 模板 path 必须在 `templates/system/` 下 / 收藏不许悬空 / `renderer.channel` 的工具名与变体必须在白名单），rc 0 全过 / 1 有 FAIL / 2 索引缺失；`--list` 按「收藏置顶 → 系统按图型分组 → 用户」列三类；`--selected` 读用户在页面上选的那个模板（四分支：none / 过期选择 / implemented 给通道 / spec-only 报 gap）；`--selftest` 八条变异 + 三条 `--selected` 分支全部必须真红。**没证据的 implemented 过不了这道闸** |
+| `lib/templates.js` | **模板选择页的服务端**：`/plugins/dsh-plot-clone` 下四条路由（prefix 注册在 `webServer` seam，不新开端口）；列表 49 条带 `status`/`channels`/`thumb`，缩略图**只认 `templates/evidence/<id>.png`**，spec-only 无实拍图给 `thumb: null` 且 404 `no-thumbnail`（不许拿 implemented 的图冒充）；选中与收藏写 `~/.dsh/dsh-plot-clone/selection.json`，非法 id 逐条报错 |
+| `lib/page.js` | 页面本体：自包含 HTML（内联 CSS+JS，无外部依赖、无构建链），卡片=缩略图/名称/分类/status 标/★收藏/「用这个」，顶部搜索 + implemented｜spec-only 过滤；无图卡片显示「无实拍 / 仅规格，渲染未对接」 |
+| `test/preview.mjs` | 开发预览（不进 npm 包）：`node test/preview.mjs` 用与插件同一个 handler 起临时端口并打印 `templates_dir:` / `selection:` / `page:`，`PORT=` 可固定——插件还没装进 profile 时用它验路由和页面 |
 
 取色用法（需要精确 hex 时才跑）：
 
@@ -173,7 +177,21 @@ python verify_deliverable.py --selftest
 
 为什么注册走 HTTP API 而不写 `storages/mcp_connector.json`：connector 在 `apply` 时把 domain open 进内存且全库无文件监听，外部写入必须重启 DSH 才生效，还会绕过快照/回滚与 scope 校验。HTTP API 是它自己的 UI 也在用的接口（有方法白名单与回环信任校验）。
 
-状态与产物都在用户目录，**不放插件目录**（pnpm 重装会清空 `node_modules`）：`~/.dsh/dsh-plot-clone/{venv,server,cache,mcp-state.json,bootstrap.json,bootstrap.log}`。
+状态与产物都在用户目录，**不放插件目录**（pnpm 重装会清空 `node_modules`）：`~/.dsh/dsh-plot-clone/{venv,server,cache,mcp-state.json,selection.json,bootstrap.json,bootstrap.log}`。
+
+### 模板选择页
+
+路由和 MCP 自注册挂在同一个 `webServer` seam 上（`kind:"prefix"`，prefix `/plugins/dsh-plot-clone`），不新开端口、不引构建链。DSH 里从侧栏打开 `http://127.0.0.1:<DSH 端口>/plugins/dsh-plot-clone/` 即可。
+
+| 路由 | 返回 |
+|---|---|
+| `GET /` | 自包含 HTML（无外部资源） |
+| `GET /templates` | 49 条 JSON：`id/name/category/status/channels/thumb/evidencePath/kind/gap` |
+| `GET /thumb/<id>` | `image/png`，且**只有 `templates/evidence/<id>.png` 存在时**才 200；否则 404 `no-thumbnail` |
+| `GET /selection` | `{selected, favorites, updatedAt}` |
+| `POST /selection` | body `{selected: "<id>"\|null, favorites: ["<id>"]}`；非法 id 400 并逐条报错，收藏可增可删 |
+
+选中落 `~/.dsh/dsh-plot-clone/selection.json`（与 `mcp-state.json` 同目录，pnpm 重装不清）。它只是**偏好**，不改自动匹配判据：第 4 步先用 `python templates_index.py --selected` 读它，命中就按用户选的做；数据对不上就改自动匹配并给「推荐 id + 缩略图」，不报错也不硬套。
 
 ### bootstrap（首次安装器）
 

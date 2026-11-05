@@ -199,17 +199,43 @@ python test_synth.py                            # 改过量测代码就跑这个
 
 模板是**加速器，不是必经之路**。这一步只花几十秒：查得到就用，查不到就走自由构图，两条都是正常路径。
 
-### 1. 先验索引，再谈模板
+### 1. 用户选过模板，就先按它做（手动选择优先于自动匹配）
+
+插件带一个模板选择页：DSH 里打开 `http://127.0.0.1:<DSH 端口>/plugins/dsh-plot-clone/`（侧栏打开即可，页面无外部依赖）。用户点「用这个」写的是：
+
+```
+%USERPROFILE%\.dsh\dsh-plot-clone\selection.json      # 设了 DSH_HOME 则在它下面
+```
+
+第 4 步开工先读它，别猜：
+
+```
+python templates_index.py --selected
+```
+
+- `SELECTED none` → 用户没选，走下面第 2 小步的自动匹配。
+- 有 selected 且 `[implemented]` → **直接按这条模板的 `renderer.channel` + 两份契约走**，跳过第 2/3 小步。用户明确选的图型不许换成你觉得更好的。
+- 有 selected 但 `[spec-only]` → 原话说明「这个图型我只有规格、渲染未对接」，给自由构图 / 近似 implemented 两个选项（同第 5 小步）。这是用户自己选的，如实告知**不算静默降级**。
+- 有 selected 但与本次数据不匹配（列角色不满足该模板的 `data_contract.md`）→ **不报错、不硬套**：改走自动匹配，同时把建议给出来：
+
+  > 你选的 `<id>` 要的是 `<roles>`，这次数据是 `<实际角色>`，套不上。建议用 `<推荐 id>`——缩略图 `templates/evidence/<推荐 id>.png`（页面里是 `/plugins/dsh-plot-clone/thumb/<推荐 id>`），理由是 `<一句话>`。
+
+  推荐必须是 `implemented`：spec-only 拿不出实拍缩略图，不许推荐。
+- `过期选择`（id 已不在索引里）→ 说明它不存在了，走自动匹配。
+
+**选中只是偏好，不是闸门**：它只改优先顺序，不改任何判据。
+
+### 2. 先验索引，再谈模板
 
 ```
 python templates_index.py --check
 ```
 
-- `rc=0`（输出 `STATUS PASS (N templates)`）→ 索引可用，进第 2 小步。
+- `rc=0`（输出 `STATUS PASS (N templates)`）→ 索引可用，进第 3 小步。
 - `rc=2`（`ERROR index not found`）→ **模板库不可用**。原话告诉用户「本次没有模板库，走自由构图」，直接跳到第 5 步。**不许装作有模板**，也不许凭记忆报一个模板名。
 - `rc=1`（有 `FAIL` 行）→ 索引坏了。把 FAIL 原文贴给用户，同样走自由构图。
 
-### 2. 列三组模板，说清差别
+### 3. 列三组模板，说清差别
 
 ```
 python templates_index.py --list
@@ -225,7 +251,9 @@ python templates_index.py --list
 
 筛选用 `--group system|user|favorites`、`--status implemented|spec-only`。
 
-### 3. 命中 `implemented` → 按模板的通道走
+收藏有两个落点，别混：页面上的收藏写 `selection.json`（`--selected` 会打 `FAVORITES` 行），`templates/favorites.json` 是随交付携带的那份。两边都当收藏看，页面优先（用户刚点的）。
+
+### 4. 命中 `implemented` → 按模板的通道走
 
 `renderer.channel` 是主通道，`renderer.helpers` 是辅助，例如：
 
@@ -237,7 +265,7 @@ origin_labtalk(script="plotm im:=[M001]1!1 plot:=105 ogl:=[<new>]!;")           
 
 同时读同目录的 `data_contract.md`（要什么列）和 `visual_contract.md`（视觉判据 + 实测补充），把它们当第 1 步规格卡的**默认值**；用户明说的优先于模板默认。
 
-### 4. 命中 `spec-only` → 必须原话说明，绝不静默降级
+### 5. 命中 `spec-only` → 必须原话说明，绝不静默降级
 
 原话告诉用户：
 
@@ -250,7 +278,7 @@ origin_labtalk(script="plotm im:=[M001]1!1 plot:=105 ogl:=[<new>]!;")           
 
 **不许静默降级成自由构图**——用户有权知道他要的图型我们到底有没有。
 
-### 5. 未命中 → 自由构图
+### 6. 未命中 → 自由构图
 
 索引里没有这个图型（或用户要的是参考图那种非常规构图）→ 直接进第 5 步。这是**正常路径**，不是失败。
 

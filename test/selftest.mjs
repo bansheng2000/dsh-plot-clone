@@ -8,6 +8,7 @@
 
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import * as httpMod from "node:http";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -225,4 +226,191 @@ const STATUS_EMPTY = () => ({ ok: true, detail: { items: [] } });
   ok("cordis.patch.yml 用 - insert: 形态", `first=${first.trim()}`);
 }
 
-console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态）`);
+/* ───────────── 10) 模板列表：49 条，缩略图只认 evidence PNG ───────────── */
+const tm = await import("../lib/templates.js");
+const rootDir = (await import("node:path")).dirname((await import("node:path")).dirname((await import("node:url")).fileURLToPath(import.meta.url)));
+const tplDir = (await import("node:path")).join(rootDir, "templates");
+let LIST = [];
+{
+  const index = tm.readIndex(tplDir);
+  assert.ok(index, "templates/index.json 必须能读");
+  LIST = tm.buildTemplateList(index, tplDir);
+  assert.equal(LIST.length, 49, `模板数应为 49，实际 ${LIST.length}`);
+  const impl = LIST.filter((t) => t.status === "implemented");
+  const spec = LIST.filter((t) => t.status === "spec-only");
+  assert.equal(impl.length, 9, `implemented 应为 9，实际 ${impl.length}`);
+  assert.equal(spec.length, 40, `spec-only 应为 40，实际 ${spec.length}`);
+  for (const t of impl) assert.ok(t.thumb, `implemented ${t.id} 必须有缩略图`);
+  // 硬要求：spec-only 一律不许有 thumb（不许拿 implemented 的图冒充）
+  const fake = spec.filter((t) => t.thumb !== null);
+  assert.equal(fake.length, 0, `以下 spec-only 有缩略图（冒充）：${fake.map((t) => t.id).join(",")}`);
+  for (const t of LIST) {
+    assert.equal(typeof t.id, "string");
+    assert.equal(typeof t.name, "string");
+    assert.equal(typeof t.category, "string");
+    assert.ok(Array.isArray(t.channels));
+    assert.ok(t.status === "implemented" || t.status === "spec-only");
+  }
+  ok("列表 49 条（impl 9 / spec-only 40），spec-only 缩略图全 null", `impl=${impl.length} spec=${spec.length}`);
+}
+
+/* ───────────── 11) thumb 只认 evidence/<id>.png，目录穿越一律拒绝 ───────────── */
+{
+  assert.ok(tm.thumbFile(tplDir, "bar"), "bar 有实拍图");
+  assert.equal(tm.thumbFile(tplDir, "violin"), null, "violin 只有规格，不许有图");
+  assert.equal(tm.thumbFile(null, "bar"), null);
+
+  // 穿越要能真抓住：造一个 evidence/ 之外的同名目标，去掉 id 白名单就会读到它
+  const { dir } = freshHome();
+  try {
+    const pathMod = await import("node:path");
+    mkdirSync(pathMod.join(dir, "evidence"), { recursive: true });
+    writeFileSync(pathMod.join(dir, "evidence", "bar.png"), "png", "utf8");
+    writeFileSync(pathMod.join(dir, "secret.png"), "leak", "utf8");
+    assert.ok(tm.thumbFile(dir, "bar"), "fixture 里的合法图要能取到");
+    assert.equal(tm.thumbFile(dir, "../secret"), null, "不许读到 evidence 之外的同名图");
+    assert.equal(tm.thumbFile(dir, "../../etc/passwd"), null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  ok("thumbFile 拒绝穿越与无图模板", "bar=ok violin=null ../secret=null");
+}
+
+/* ───────────── 12) 选中/收藏校验：非法 id 必须报错，不许静默丢弃 ───────────── */
+{
+  const ids = tm.idsOf(LIST);
+  assert.equal(tm.validateSelection({ selected: "bar" }, ids).ok, true);
+  assert.equal(tm.validateSelection({ selected: null }, ids).ok, true);
+  const bad = tm.validateSelection({ selected: "nope" }, ids);
+  assert.equal(bad.ok, false);
+  assert.match(bad.errors[0], /nope/);
+  assert.equal(tm.validateSelection({ selected: 123 }, ids).ok, false);
+  assert.equal(tm.validateSelection({ favorites: "bar" }, ids).ok, false);
+  const badFav = tm.validateSelection({ favorites: ["bar", "ghost"] }, ids);
+  assert.equal(badFav.ok, false);
+  assert.match(badFav.errors[0], /ghost/);
+  assert.equal(tm.validateSelection({}, ids).ok, false);
+  assert.equal(tm.validateSelection(null, ids).ok, false);
+  const dedupe = tm.validateSelection({ favorites: ["bar", "bar", "xrd"] }, ids);
+  assert.equal(dedupe.ok, true);
+  assert.deepEqual(dedupe.patch.favorites, ["bar", "xrd"]);
+  ok("校验：非法 id 报错、重复收藏去重", `bad=${JSON.stringify(bad.errors)} dedupe=${JSON.stringify(dedupe.patch.favorites)}`);
+}
+
+/* ───────────── 13) 选中落盘：与 mcp-state.json 同目录，读回一致 ───────────── */
+{
+  const { dir, env } = freshHome();
+  try {
+    const selPath = tm.selectionPath(env);
+    const pathMod = await import("node:path");
+    const mcpDir = pathMod.dirname(mod.rendererPaths(env).mcpState);
+    assert.equal(pathMod.dirname(selPath), mcpDir, "selection.json 必须与 mcp-state.json 同目录");
+    assert.ok(selPath.endsWith("selection.json"));
+    tm.writeSelection(selPath, { selected: "xrd", favorites: ["bar"], updatedAt: "2026-11-05T00:00:00.000Z" });
+    const back = tm.readSelection(selPath);
+    assert.equal(back.selected, "xrd");
+    assert.deepEqual(back.favorites, ["bar"]);
+    assert.equal(tm.readSelection(pathMod.join(dir, "missing.json")).selected, null);
+    // 收藏增删
+    const toggled = tm.toggleFavorite(back, "bar", tm.idsOf(LIST));
+    assert.deepEqual(toggled.favorites, []);
+    ok("落盘同目录 + 读回一致 + 收藏可删", `dir=${selPath.replace(/\\/g, "/")}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/* ───────────── 14) 三条路由：列表 / 缩略图字节 / 选中读写 ───────────── */
+async function withRoutes(fn) {
+  const { dir, env } = freshHome();
+  const handler = tm.createRoutes({ env, templatesDir: tplDir });
+  const server = createServer((req, res) => { handler(req, res); });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  try {
+    return await fn({ base: `http://127.0.0.1:${port}`, env, dir });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function httpGet(url, method = "GET", body) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = httpMod.request(
+      { host: u.hostname, port: u.port, path: u.pathname + u.search, method, headers: body ? { "content-type": "application/json" } : {} },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+      },
+    );
+    req.on("error", reject);
+    if (body) req.write(JSON.stringify(body));
+    req.end();
+  });
+}
+
+{
+  await withRoutes(async ({ base, env }) => {
+    const list = await httpGet(`${base}/templates`);
+    assert.equal(list.status, 200);
+    const payload = JSON.parse(list.body.toString("utf8"));
+    assert.equal(payload.count, 49);
+    assert.equal(payload.templates.length, 49);
+    assert.equal(payload.selected, null);
+
+    const png = await httpGet(`${base}/thumb/bar`);
+    assert.equal(png.status, 200);
+    assert.equal(png.headers["content-type"], "image/png");
+    assert.ok(png.body.length > 1000, `PNG 字节数应 >1000，实际 ${png.body.length}`);
+    assert.equal(png.body.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", "PNG magic");
+
+    const noThumb = await httpGet(`${base}/thumb/violin`);
+    assert.equal(noThumb.status, 404, "spec-only 没有实拍图必须 404，不许回占位图");
+    assert.equal(JSON.parse(noThumb.body.toString("utf8")).code, "no-thumbnail");
+
+    const post = await httpGet(`${base}/selection`, "POST", { selected: "xrd" });
+    assert.equal(post.status, 200);
+    const back = await httpGet(`${base}/selection`);
+    assert.equal(JSON.parse(back.body.toString("utf8")).selected, "xrd", "POST 后 GET 必须读回同一个 id");
+    const onDisk = JSON.parse((await import("node:fs")).readFileSync(tm.selectionPath(env), "utf8"));
+    assert.equal(onDisk.selected, "xrd");
+
+    const fav = await httpGet(`${base}/selection`, "POST", { favorites: ["bar", "xrd"] });
+    assert.equal(fav.status, 200);
+    const favBack = JSON.parse((await httpGet(`${base}/selection`)).body.toString("utf8"));
+    assert.deepEqual(favBack.favorites, ["bar", "xrd"]);
+    const unfav = await httpGet(`${base}/selection`, "POST", { favorites: ["xrd"] });
+    assert.equal(unfav.status, 200);
+    const afterUnfav = JSON.parse((await httpGet(`${base}/selection`)).body.toString("utf8"));
+    assert.deepEqual(afterUnfav.favorites, ["xrd"], "收藏必须能删");
+
+    const clear = await httpGet(`${base}/selection`, "POST", { selected: null });
+    assert.equal(clear.status, 200);
+    assert.equal(JSON.parse((await httpGet(`${base}/selection`)).body.toString("utf8")).selected, null);
+
+    const bad = await httpGet(`${base}/selection`, "POST", { selected: "ghost" });
+    assert.equal(bad.status, 400);
+    assert.match(JSON.parse(bad.body.toString("utf8")).errors[0], /ghost/);
+
+    const page = await httpGet(`${base}/`);
+    assert.equal(page.status, 200);
+    assert.match(page.headers["content-type"], /text\/html/);
+    const html = page.body.toString("utf8");
+    assert.match(html, /无实拍/, "页面必须有 spec-only 占位文案");
+    assert.match(html, /用这个/);
+    assert.equal(/<script[^>]+src=|<link[^>]+rel="stylesheet"/i.test(html), false, "不许依赖外部 CDN/样式表");
+
+    const miss = await httpGet(`${base}/nope`);
+    assert.equal(miss.status, 404);
+
+    ok(
+      "路由：列表 49 / thumb image-png / POST→GET 读回 / 收藏可删 / 非法 id 400",
+      `png=${png.body.length}B list=${payload.count} page=${html.length}B`,
+    );
+  });
+}
+
+console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由）`);

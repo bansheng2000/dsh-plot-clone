@@ -10,10 +10,13 @@
   },
   "files": [
     "lib/index.js",
+    "lib/templates.js",
+    "lib/page.js",
     "lib/bootstrap.py",
     "cordis.patch.yml",
     "README.md",
     "test/selftest.mjs",
+    "templates/",
     ".gitignore"
   ],
   "keywords": [
