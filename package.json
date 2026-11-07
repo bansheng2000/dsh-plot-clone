@@ -1,6 +1,6 @@
 {
   "name": "dsh-plot-clone",
-  "version": "2.10.0",
+  "version": "2.10.1",
   "description": "参考图复刻成 Origin 图的 SOP（技能）+ 插件壳：Origin MCP server 随包分发（MIT），装插件即连上，不下载、不注册 connector；缺依赖时首启建 venv，面板显示进度与可复制的手动命令。",
   "type": "module",
   "main": "lib/index.js",

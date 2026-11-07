@@ -1,5 +1,13 @@
 # 变更记录
 
+## v2.10.1（2026-11-07）
+
+**补 v2.10.0 的两个生产环境 bug。** v2.10.0 的 Release 保留但请用本版；装过 2.10.0、且首次启动时 bootstrap 报过 `WinError 183` 的机器，本版启动会自动把镜像就地升级。
+
+- **镜像升级必然失败**：state 镜像目录就是运行中 MCP 进程的 cwd，Windows 下既删不掉也改不了名，`rmtree + rename` 静默报 `WinError 183`，镜像停在旧版本——空闲释放的代码根本没进到实际运行的 server。改成逐文件 `copy2 → os.replace` 就地替换、删残留旧文件、写完复算哈希；二次运行只校验。
+- **生产握手报 `0.0.0-dev`**：镜像里没有 `package.json`（插件本体在 profile 的 `node_modules`），版本只认 `package.json` 会退回开发版号。改成 bootstrap 每次写 `state/VERSION`，server 依次读「env → package.json → VERSION」。
+- 自检：`patch_check` 46 项（新增「镜像 VERSION 握手」与两条静态断言）、`selftest 24/24`、空闲释放单测 9/9。
+
 ## v2.10.0（2026-11-07）
 
 **本版把 v2.9 发布后才落地的「装插件即带 Origin MCP」补齐，并修掉它带来的常驻副作用。**
