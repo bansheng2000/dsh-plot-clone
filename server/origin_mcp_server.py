@@ -1960,11 +1960,23 @@ def _sync_stdio_server():
     registry = _build_tool_registry()
     tool_fns = {name: globals()[name] for name in registry if callable(globals().get(name))}
 
+    # 空闲自动释放：MCP 进程活到 DSH 退出，不释放就会一直占着 Origin（用户手动
+    # 打开会提示「另一个应用正在控制」）。release 走 engine.release（@_synchronized），
+    # watchdog 线程只读时钟、不直接碰 COM。
+    import origin_idle
+    releaser = origin_idle.IdleReleaser(
+        origin_idle.idle_seconds_from_env(), engine.release,
+        is_connected=engine.is_connected).start()
+
     # #26 退出兜底：服务器进程结束（会话结束/重载）时，若还连着 Origin 就把窗口
     # 显示出来——否则用户看到的只是一个看不见的 Origin64 残留进程。
     import atexit
 
     def _reveal_on_exit():
+        try:
+            releaser.stop()
+        except Exception:
+            pass
         try:
             engine.reveal(force=True)
         except Exception:
@@ -2044,6 +2056,7 @@ def _sync_stdio_server():
                     "isError": True,
                 }})
             else:
+                releaser.begin_call()
                 try:
                     sig = inspect.signature(fn)
                     valid = {k: v for k, v in args.items() if k in sig.parameters}
@@ -2062,6 +2075,8 @@ def _sync_stdio_server():
                         }, ensure_ascii=False)}],
                         "isError": True,
                     }})
+                finally:
+                    releaser.end_call()
         else:
             _write_jsonrpc({"jsonrpc": "2.0", "id": msg_id, "error": {
                 "code": -32601, "message": f"method not found: {method}",

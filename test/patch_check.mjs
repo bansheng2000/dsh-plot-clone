@@ -393,6 +393,34 @@ export function checkVendor() {
   }
 }
 
+/* ───────────── 空闲释放单测（不需要 Origin） ───────────── */
+
+async function checkIdleRelease() {
+  const python = findPython();
+  const script = join(HERE, 'origin_idle_test.py');
+  if (!python) {
+    ok(false, '空闲释放: 找不到 python（先让插件建好 venv，或设 DSH_PLOT_CLONE_PYTHON）');
+    return;
+  }
+  if (!existsSync(script)) {
+    ok(false, `空闲释放: 缺 ${script}（package.json files 要包含 test/origin_idle_test.py）`);
+    return;
+  }
+  const child = spawn(python, ['-u', '-X', 'utf8', script], {
+    cwd: REPO,
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' },
+  });
+  let out = '';
+  child.stdout.on('data', (chunk) => { out += chunk.toString('utf8'); });
+  child.stderr.on('data', (chunk) => { out += chunk.toString('utf8'); });
+  const code = await new Promise((resolve) => child.on('close', resolve));
+  const lines = out.trim().split('\n').filter(Boolean);
+  const last = lines.length ? lines[lines.length - 1] : '(no output)';
+  const match = /origin_idle selftest ok: (\d+)\/\1/.exec(out);
+  ok(code === 0 && Boolean(match),
+     `空闲释放: 单测 ${match ? `${match[1]} 项全过` : '失败'} | ${last}`);
+}
+
 /* ───────────── main ───────────── */
 
 const args = new Set(process.argv.slice(2));
@@ -401,6 +429,9 @@ const text = readFileSync(PATCH, 'utf8');
 checkStatic(text);
 checkComposition(text);
 checkVendor();
+if (!args.has('--static')) {
+  await checkIdleRelease();
+}
 
 if (args.has('--mutate')) {
   runMutations();

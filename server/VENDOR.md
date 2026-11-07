@@ -18,8 +18,11 @@
 1. **`origin_new_project` 工具**（fork 2.7.5）：先 `origin_save_project` 存旧工程再 `doc -n` 新建，避免模态框卡 COM；每会话一个工程。
 2. **版本号跟随插件**（本包改动）：`origin_mcp_server.py` 不再写死 `2.0.0` / `2.3.0`，改为启动时读插件根 `package.json` 的 `version`（可用 `PLOT_CLONE_PACKAGE_JSON` 覆盖，供测试）；上游版本另记在 `_UPSTREAM`，由 `origin_status` 的 `upstream` 字段回报。
 3. **stdio 入口委托**：`origin_mcp_stdio.py` 只做依赖预检并委托 `origin_mcp_server._sync_stdio_server()`，两种入口共用同一套 76 个工具。
+4. **空闲自动释放**（本包新增 `origin_idle.py`）：MCP 进程随 DSH 常驻，首次 `origin_*` 调用后若一直不释放，Origin 会被自动化占用，用户手动打开会提示「另一个应用正在控制」。现由旁路线程按空闲阈值（默认 120s，`DSH_ORIGIN_IDLE_RELEASE` 覆盖，`0` 关闭）调用 `engine.release()`：只清 COM 引用并显示窗口，不杀进程、不改数据，下一次调用自动重连。`origin_engine.is_connected()` 是只读连接标志（不碰 COM、不触发连接），仅供该线程判定。
 
-除以上三点，工具行为与上游一致。改动只发生在「我们这层」的入口/版本字段，上游 `LICENSE` 与版权行原样保留。
+`origin_idle.py` 是**本插件新增**，不在上游文件清单里；其余 21 个文件仍为上游快照。
+
+除以上四点，工具行为与上游一致。改动只发生在「我们这层」的入口/版本字段，上游 `LICENSE` 与版权行原样保留。
 
 ## 逐文件 sha256
 
@@ -32,13 +35,14 @@
 | `origin_bridge.py` | 8310 | `d1ffeb82b4b3d0b056acdedac90fd86f17b62201ec1de85c92bc7d683774031b` |
 | `origin_capabilities.py` | 15141 | `01d00a8c963224e7309385277ed8eeb86184a58c3758721149bd88700fd3b5b9` |
 | `origin_edit.py` | 46512 | `4f162a79f1663899154f733cc1b8723aad4b8976d81755abe9ce3adde5f85464` |
-| `origin_engine.py` | 268158 | `adfcc34072274da71bf814734e3b315fc5a2e52b48fbc61f6501f82edd582832` |
+| `origin_engine.py` | 268347 | `694ad92d71c1cb0cc6804af9c9e6eb288c808d5091c7230a7120b527c027c253` |
 | `origin_errors.py` | 20619 | `9215ef767ac80e4a87aaa46e3793002f926f6c55614432a4c98caea33b9a2605` |
 | `origin_fileio.py` | 11652 | `95b454edb99353319d3a0c4dfd1687b829ca9d9af4ee02d6bd7352e7caf8c201` |
 | `origin_gallery.py` | 3684 | `33803c0bccd6256297b39998222877cdf5ac2f63301066b1613493ac8aa2d339` |
+| `origin_idle.py` | 6386 | `4f6afcab5d639a2ea57546ca24088d8a2ba0192f041fae8c47bec8cd0a1a8de2` |
 | `origin_matrix.py` | 5789 | `ebd8a582e37dd3b415f45b4636a2f8b72637b4be34155de8634bde933e05139d` |
 | `origin_mcp_http.py` | 15725 | `fed3c2ea96d8c59948aee9938f03620544c1c4c6a88287d55928447b51db4f61` |
-| `origin_mcp_server.py` | 103202 | `7396ec04e78e11601d9e47517a9d8a716a927c262ea339b6f487b472b3475a2b` |
+| `origin_mcp_server.py` | 103838 | `e15db3c70a3d49e595661854954d14558150abedb71b1ddda8eb104747a3fd5a` |
 | `origin_mcp_stdio.py` | 4744 | `5feb225e958bfb6a8c8e09d3688bb586a942677843dfb9618dffb9f384b6ecf7` |
 | `origin_plan.py` | 14338 | `e841c27531863e1621538bc727f29dacbbeb7fced4909e3fa31133d448ff51c3` |
 | `origin_proof.py` | 8673 | `688e1db3f5acd0f763a47ee35687773ad9fcbaa78a9fe016aa71d91e3f8cd4e1` |

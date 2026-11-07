@@ -5217,6 +5217,11 @@ def shutdown(timeout=5.0):
 
 
 # --- P0-3（2026-09-16）：release / reconnect —— 把 Origin 让给用户手动操作 ---
+def is_connected():
+    """只读连接标志（不碰 COM、不触发连接）：给空闲释放这类旁路线程判定用。"""
+    return bool(_connected and _origin_app is not None)
+
+
 def _release_impl():
     """释放自动化引用但**不关闭 Origin**：用户可立即手动操作 Origin 窗口。
 
