@@ -70,6 +70,10 @@ python verify_deliverable.py 成品.png 成品.pdf 成品.opju --min-width 1800
 
 当前 `2.9.0`（技能与插件同号）。变更记录见 `CHANGELOG.md`。
 
+**Origin MCP 随 dsh-plot-clone 版本，不单独发版**：`serverInfo.version` 在启动时读本包 `package.json`（不硬编码），上游 fork 的版本（2.7.5 / `03acc24…`）另记在 `server/VENDOR.md`，`origin_status` 的 `upstream` 字段也会回报。
+
+`server/` 是**冻结快照**，上游更新不会自动进来、也不会覆盖我们；要跟进跑 `node scripts/vendor_sync.mjs --from <上游目录|.tgz>`（只打印差异，不写盘、不联网），确认后人工合并并更新 `VENDOR.md` 的哈希表。
+
 ## 许可
 
 暂未附 `LICENSE`，默认保留所有权利。模板规格的部分来源与许可见 `templates/NOTICE`。

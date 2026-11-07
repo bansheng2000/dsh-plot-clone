@@ -2,7 +2,9 @@
 
 ## v2.9.0（2026-11-07）
 
-- 安装即带 Origin MCP：`server/` 随包分发 21 个文件（MIT，来源与 commit 见 `server/NOTICE.md`），`cordis.patch.yml` 插入 `plot-clone-origin-mcp` 条目；不再下载 tarball、不再自动注册 connector，首次启动只建 venv。
+- 安装即带 Origin MCP：`server/` 随包分发（MIT，来源与 commit 见 `server/VENDOR.md`），`cordis.patch.yml` 插入 `plot-clone-origin-mcp` 条目；不再下载 tarball、不再自动注册 connector，首次启动只建 venv（仅当包内缺 `server/` 才回落到 pinned 下载）。
+- 版本单一真源：`serverInfo.version` 启动时读本包 `package.json`（`PLOT_CLONE_PACKAGE_JSON` 可覆盖供测试）；上游 fork 版本（2.7.5 / `03acc24…`）记在 `VENDOR.md` 与 `origin_status.upstream`。
+- 快照不被覆盖：包内 `server/` 为唯一真源，state 镜像每次启动校验哈希、不一致以包内为准重写；新增 `scripts/vendor_sync.mjs --from <dir|tgz>`（只打印差异，不写盘、不联网）。
 - 同名冲突改为只读检测：面板红条 + 「停用旧连接」发一条消息给 agent（备份 → 停用 → 重启），本插件**从不**写 `mcp_connector.json`，请求落 `mcp-migration-request.json` 留痕。
 - 依赖安装三步进面板：stage / progress / 失败原因 / 可复制的三条命令（含清华镜像）/ 镜像提示 / 重试；`bootstrap.json` 状态直接显示在面板，`--check` 可给脚本判定。
 - 自检：新增 `test/patch_check.mjs`（静态 22 项 + 组合 0 重复 id/serverName + 三条变异真红 + `--handshake` 真握手 76 工具）。

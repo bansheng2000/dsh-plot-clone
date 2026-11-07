@@ -44,6 +44,14 @@ MIRROR_HINT = ("pip 慢/被墙时加镜像："
                "-i https://pypi.tuna.tsinghua.edu.cn/simple"
                "（或 https://mirrors.aliyun.com/pypi/simple）")
 
+# 兜底下载只用于「包内没有 server/ 的开发态」（例如从源码树直接跑、或 npm 包被裁剪）。
+# 正常安装**永不联网**：包内有就用包内的。
+UPSTREAM_VERSION = "2.7.5"
+UPSTREAM_COMMIT = "03acc24181aae6c6ac3a8502aa6ae24a8d1708da"
+UPSTREAM_URL = ("https://codeload.github.com/Fantasality/dsh-origin-plugin/"
+                "tar.gz/" + UPSTREAM_COMMIT)
+UPSTREAM_SHA256 = "c2637ec914c2208c95d7aa48ebd011f87ecf3c7868bcb21466b5ecefb8cf72e2"
+
 
 def _native(path):
     """Git-Bash/MSYS 传进来的 /c/Users/... 要还原成 C:/Users/...，
@@ -83,6 +91,8 @@ def paths():
         "state": os.path.join(d, "bootstrap.json"),
         "log": os.path.join(d, "bootstrap.log"),
         "web_port": os.path.join(d, "web-port.txt"),
+        "cache": os.path.join(d, "cache"),
+        "tarball": os.path.join(d, "cache", "origin-server-%s.tgz" % UPSTREAM_COMMIT[:12]),
     }
 
 
@@ -197,9 +207,11 @@ def deps_ok(venv_python):
 def dir_fingerprint(root):
     h = hashlib.sha256()
     for base, dirs, files in os.walk(root):
-        dirs.sort()
+        dirs[:] = sorted(d for d in dirs if d != "__pycache__")
         for name in sorted(files):
-            if name in (SERVER_MARKER,):
+            # .pyc / marker 是运行产物或元数据，不属于快照内容；拷贝时也跳过它们，
+            # 两边口径必须一致，否则镜像永远「哈希不符」。
+            if name in (SERVER_MARKER,) or name.endswith(".pyc"):
                 continue
             p = os.path.join(base, name)
             rel = os.path.relpath(p, root).replace("\\", "/")
@@ -211,36 +223,86 @@ def dir_fingerprint(root):
     return h.hexdigest()
 
 
+def _sha256_file(path):
+    h = hashlib.sha256()
+    with io.open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _bundled_or_cached():
+    """包内有 server/ 就用包内的；否则回落到缓存 tarball（只在这一种情况下联网）。"""
+    src = bundled_server_dir()
+    if os.path.isdir(src) and os.path.isfile(os.path.join(src, SERVER_ENTRY)):
+        return src, "bundled"
+    p = paths()
+    os.makedirs(p["cache"], exist_ok=True)
+    if not (os.path.isfile(p["tarball"])
+            and _sha256_file(p["tarball"]) == UPSTREAM_SHA256):
+        import urllib.request
+        write_state({"ok": False, "stage": "server", "progress": "download",
+                     "source": "upstream",
+                     "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+        log("包内没有 server/，从 %s 下载（仅此种情况联网）" % UPSTREAM_URL)
+        req = urllib.request.Request(UPSTREAM_URL,
+                                     headers={"User-Agent": "dsh-plot-clone"})
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            with io.open(p["tarball"], "wb") as fh:
+                shutil.copyfileobj(resp, fh)
+        got = _sha256_file(p["tarball"])
+        if got != UPSTREAM_SHA256:
+            os.remove(p["tarball"])
+            raise RuntimeError("tarball sha256 不符：%s != %s" % (got, UPSTREAM_SHA256))
+    import tarfile
+    extract = os.path.join(p["cache"], "src-" + UPSTREAM_COMMIT[:12])
+    shutil.rmtree(extract, ignore_errors=True)
+    with tarfile.open(p["tarball"], "r:gz") as tf:
+        tf.extractall(extract)
+    for base, dirs, files in os.walk(extract):
+        if SERVER_ENTRY in files:
+            return base, "upstream"
+    raise RuntimeError("tarball 里找不到 %s" % SERVER_ENTRY)
+
+
 def server_ready():
     p = paths()
     if not (os.path.isfile(p["server_entry"]) and os.path.isfile(p["marker"])):
-        return False
-    src = bundled_server_dir()
-    if not os.path.isdir(src):
         return False
     try:
         meta = json.loads(io.open(p["marker"], encoding="utf-8").read())
     except Exception:
         return False
-    return meta.get("fingerprint") == dir_fingerprint(src)
+    src = bundled_server_dir()
+    if os.path.isdir(src) and os.path.isfile(os.path.join(src, SERVER_ENTRY)):
+        # 包内是唯一真源：marker 与 **镜像自身** 都必须和包内哈希一致。
+        expected = dir_fingerprint(src)
+        return (meta.get("fingerprint") == expected
+                and dir_fingerprint(p["server"]) == expected)
+    # 没有随包源码时（开发态的兜底下载），至少要保证镜像未被改动。
+    return meta.get("fingerprint") == dir_fingerprint(p["server"])
 
 
 def ensure_server():
     p = paths()
-    src = bundled_server_dir()
-    if not os.path.isdir(src) or not os.path.isfile(os.path.join(src, SERVER_ENTRY)):
-        return fail("server", "插件包内缺少 server/ 目录",
-                    "重装 dsh-plot-clone（server/ 必须随包）；或把 origin MCP 源码放到 %s" % src)
     write_state({"ok": False, "stage": "server", "progress": "copy",
                  "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
     if server_ready():
-        log("server 源码已就位且指纹一致（只校验，不重拷）")
+        log("server 镜像与包内哈希一致（只校验，不重拷）")
         return True
+    try:
+        src, source = _bundled_or_cached()
+    except Exception as exc:
+        return fail("server", "拿不到 Origin MCP 源码: %s" % exc,
+                    "重装 dsh-plot-clone（server/ 随包）；或确认能访问 %s" % UPSTREAM_URL)
+    if source == "bundled":
+        log("包内 server/ 为准，重写 state 镜像：%s" % p["server"])
     tmp = p["server"] + ".tmp"
     shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(tmp, exist_ok=True)
     try:
         for base, dirs, files in os.walk(src):
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
             rel = os.path.relpath(base, src)
             dst = tmp if rel == "." else os.path.join(tmp, rel)
             os.makedirs(dst, exist_ok=True)
@@ -252,6 +314,9 @@ def ensure_server():
             raise RuntimeError("拷贝后缺少 %s" % SERVER_ENTRY)
         io.open(os.path.join(tmp, SERVER_MARKER), "w", encoding="utf-8").write(
             json.dumps({"fingerprint": dir_fingerprint(src),
+                        "source": source,
+                        "upstream": {"version": UPSTREAM_VERSION,
+                                     "commit": UPSTREAM_COMMIT},
                         "entry": SERVER_ENTRY,
                         "copied_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")},
                        ensure_ascii=False, indent=1))
@@ -260,8 +325,8 @@ def ensure_server():
     except Exception as exc:
         shutil.rmtree(tmp, ignore_errors=True)
         return fail("server", "拷贝 server 源码失败: %s" % exc)
-    log("server 源码就位：%s" % p["server_entry"])
-    write_state({"stage": "server", "progress": "done"})
+    log("server 源码就位（%s）：%s" % (source, p["server_entry"]))
+    write_state({"stage": "server", "progress": "done", "source": source})
     return True
 
 

@@ -19,8 +19,9 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,11 +29,13 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = dirname(HERE);
 const PATCH = join(REPO, 'cordis.patch.yml');
 const SERVER_ENTRY = join(REPO, 'server', 'origin_mcp_stdio.py');
+const PACKAGE = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'));
 
 const MCP_ID = 'plot-clone-origin-mcp';
 const SERVER_NAME = 'dsh-origin';
 const EXPECTED_TOOLS = 76;
-const EXPECTED_SERVER_INFO = { name: 'origin', version: '2.0.0' };
+// serverInfo.version 的单一真源是插件 package.json；这里不写死任何版本号。
+const EXPECTED_SERVER_INFO = { name: 'origin', version: PACKAGE.version };
 
 let pass = 0;
 const failures = [];
@@ -204,21 +207,21 @@ function findPython() {
   return candidates.find((p) => p && existsSync(p)) ?? null;
 }
 
-export async function handshake({ timeoutMs = 60000 } = {}) {
+export async function handshake({ timeoutMs = 60000, expectVersion = EXPECTED_SERVER_INFO.version, extraEnv = {}, label = '握手' } = {}) {
   const python = findPython();
   if (!python) {
-    ok(false, '握手: 找不到 python（先让插件建好 venv，或设 DSH_PLOT_CLONE_PYTHON）');
+    ok(false, `${label}: 找不到 python（先让插件建好 venv，或设 DSH_PLOT_CLONE_PYTHON）`);
     return;
   }
   if (!existsSync(SERVER_ENTRY)) {
-    ok(false, `握手: server 入口缺失 ${SERVER_ENTRY}`);
+    ok(false, `${label}: server 入口缺失 ${SERVER_ENTRY}`);
     return;
   }
 
   const child = spawn(python, ['-u', '-X', 'utf8', SERVER_ENTRY], {
     cwd: dirname(SERVER_ENTRY),
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' },
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1', ...extraEnv },
   });
 
   let buffer = '';
@@ -272,18 +275,21 @@ export async function handshake({ timeoutMs = 60000 } = {}) {
       },
     });
     const info = init?.result?.serverInfo ?? {};
-    ok(info.name === EXPECTED_SERVER_INFO.name, `握手: serverInfo.name=${JSON.stringify(info.name)}`);
-    ok(info.version === EXPECTED_SERVER_INFO.version, `握手: serverInfo.version=${JSON.stringify(info.version)}`);
+    ok(info.name === EXPECTED_SERVER_INFO.name, `${label}: serverInfo.name=${JSON.stringify(info.name)}`);
+    ok(
+      info.version === expectVersion,
+      `${label}: serverInfo.version=${JSON.stringify(info.version)}（期望 ${JSON.stringify(expectVersion)}）`,
+    );
 
     // initialized 通知：无 id、不需要回包
     child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
 
     const list = await request({ jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} });
     const tools = Array.isArray(list?.result?.tools) ? list.result.tools : [];
-    ok(tools.length === EXPECTED_TOOLS, `握手: tools/list 返回 ${tools.length} 个工具（期望 ${EXPECTED_TOOLS}）`);
+    ok(tools.length === EXPECTED_TOOLS, `${label}: tools/list 返回 ${tools.length} 个工具（期望 ${EXPECTED_TOOLS}）`);
     const head = tools.slice(0, 5).map((tool) => tool.name).join(', ');
-    ok(tools.slice(0, 5).every((tool) => typeof tool.name === 'string'), `握手: 前 5 个工具 ${head}`);
-    console.log(`握手原始回包: ${JSON.stringify({ serverInfo: info, tools: tools.length, first5: tools.slice(0, 5).map((t) => t.name) })}`);
+    ok(tools.slice(0, 5).every((tool) => typeof tool.name === 'string'), `${label}: 前 5 个工具 ${head}`);
+    console.log(`${label}原始回包: ${JSON.stringify({ serverInfo: info, tools: tools.length, first5: tools.slice(0, 5).map((t) => t.name) })}`);
     if (stderr.length > 0) console.log(`server stderr: ${stderr.join('').slice(0, 400)}`);
   } catch (error) {
     ok(false, `握手失败: ${error.message}`);
@@ -342,6 +348,51 @@ function runMutations() {
   }
 }
 
+/* ───────────── 随包快照：VENDOR.md / LICENSE / 升级通道 ───────────── */
+
+export function checkVendor() {
+  const vendorPath = join(REPO, 'server', 'VENDOR.md');
+  const licensePath = join(REPO, 'server', 'LICENSE');
+  const syncPath = join(REPO, 'scripts', 'vendor_sync.mjs');
+  ok(existsSync(vendorPath), 'vendored: server/VENDOR.md 存在');
+  ok(existsSync(licensePath), 'vendored: server/LICENSE 存在');
+  ok(existsSync(syncPath), 'vendored: scripts/vendor_sync.mjs 存在');
+
+  if (existsSync(licensePath)) {
+    const license = readFileSync(licensePath, 'utf8');
+    ok(/MIT License/i.test(license), 'vendored: LICENSE 是 MIT');
+    ok(license.includes('Copyright (c) 2026 Fantasality'), 'vendored: LICENSE 保留版权行');
+  }
+
+  if (existsSync(vendorPath)) {
+    const vendor = readFileSync(vendorPath, 'utf8');
+    ok(vendor.includes('03acc24181aae6c6ac3a8502aa6ae24a8d1708da'), 'vendored: VENDOR 记录 fork commit');
+    ok(vendor.includes('origin_new_project'), 'vendored: VENDOR 记录相对上游的改动');
+    const rows = [...vendor.matchAll(/^\| `([^`]+)` \| (\d+) \| `([0-9a-f]{64})` \|$/gm)];
+    ok(rows.length > 20, `vendored: VENDOR 哈希表 ${rows.length} 行（期望 >20）`);
+    let bad = 0;
+    let missing = 0;
+    for (const [, name, size, sha] of rows) {
+      const file = join(REPO, 'server', name);
+      if (!existsSync(file)) {
+        missing += 1;
+        continue;
+      }
+      const body = readFileSync(file);
+      const digest = createHash('sha256').update(body).digest('hex');
+      if (digest !== sha || body.length !== Number(size)) bad += 1;
+    }
+    ok(missing === 0, `vendored: 哈希表里的文件都存在（缺 ${missing}）`);
+    ok(bad === 0, `vendored: 逐文件 sha256/字节与 VENDOR 一致（不符 ${bad}）`);
+  }
+
+  if (existsSync(syncPath)) {
+    const sync = readFileSync(syncPath, 'utf8');
+    ok(!/\bfetch\s*\(/.test(sync) && !/node:https?/.test(sync), 'vendored: vendor_sync 不联网（无 fetch/http 模块）');
+    ok(/--from/.test(sync) && /--json/.test(sync), 'vendored: vendor_sync 提供 --from/--json 且只打印');
+  }
+}
+
 /* ───────────── main ───────────── */
 
 const args = new Set(process.argv.slice(2));
@@ -349,6 +400,7 @@ const text = readFileSync(PATCH, 'utf8');
 
 checkStatic(text);
 checkComposition(text);
+checkVendor();
 
 if (args.has('--mutate')) {
   runMutations();
@@ -356,6 +408,20 @@ if (args.has('--mutate')) {
 
 if (!args.has('--static')) {
   await handshake();
+  // 可证伪：把单一真源指到一个版本不同的临时 package.json，握手必须跟着变。
+  // 这一条如果过，说明 server 里没有第二份硬编码版本号。
+  const tmp = mkdtempSync(join(tmpdir(), 'pc-version-'));
+  try {
+    const fake = join(tmp, 'package.json');
+    writeFileSync(fake, JSON.stringify({ name: PACKAGE.name, version: '9.9.9-vendor-test' }), 'utf8');
+    await handshake({
+      expectVersion: '9.9.9-vendor-test',
+      extraEnv: { PLOT_CLONE_PACKAGE_JSON: fake },
+      label: '握手(版本可变)',
+    });
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 }
 
 console.log(`\npatch_check ok: ${pass}, failed: ${failures.length}`);

@@ -39,11 +39,37 @@ from mcp.types import TextContent, ImageContent
 
 import origin_engine as engine
 
+# ── 版本：Origin MCP 随 dsh-plot-clone 发版，不单独维护 ───────────────────
+# 单一真源是插件根目录的 package.json；这里只读、不硬编码。
+# 上游 fork 的版本另记，避免「装了新版却看不出上游是哪一版」。
+_UPSTREAM = {
+    "package": "dsh-origin-plugin",
+    "version": "2.7.5",
+    "commit": "03acc24181aae6c6ac3a8502aa6ae24a8d1708da",
+    "license": "MIT",
+}
+
+
+def _plugin_version() -> str:
+    """读插件 package.json 的 version；测试可用 PLOT_CLONE_PACKAGE_JSON 指到临时文件。"""
+    override = os.environ.get("PLOT_CLONE_PACKAGE_JSON")
+    pkg = override or os.path.abspath(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "package.json"))
+    try:
+        import io as _io
+        with _io.open(pkg, encoding="utf-8-sig") as fh:
+            return str(json.load(fh).get("version") or "").strip()
+    except Exception:
+        return ""
+
+
+SERVER_VERSION = _plugin_version() or "0.0.0-dev"
+
 _EXTENDED = os.environ.get("ORIGIN_MCP_PROFILE", "full").lower() != "compact"
 
 mcp = MCPServer(
     name="origin",
-    version="2.3.0",
+    version=SERVER_VERSION,
     instructions=(
         "Origin 科学绘图工具（连接本机 Origin 自动化服务器，国内可用、DSH 生态、"
         "MCP 桥接通用）。画图/分析前先调用 origin_help 或 origin_catalog 获取速查"
@@ -185,6 +211,8 @@ def origin_status() -> dict:
     if r.get("ok"):
         r["tool_count"] = len(TOOL_CATALOG)
         r["extended"] = _EXTENDED
+        r["server_version"] = SERVER_VERSION
+        r["upstream"] = _UPSTREAM
     return r
 
 
@@ -1969,7 +1997,7 @@ def _sync_stdio_server():
                 "protocolVersion": pv,
                 "capabilities": {"tools": {"listChanged": False},
                                  "resources": {"listChanged": False}},
-                "serverInfo": {"name": "origin", "version": "2.0.0"},
+                "serverInfo": {"name": "origin", "version": SERVER_VERSION},
             }})
         elif method == "ping":
             _write_jsonrpc({"jsonrpc": "2.0", "id": msg_id, "result": {}})
@@ -2051,6 +2079,6 @@ if __name__ == "__main__":
     elif arg == "--concurrency-test":
         _concurrency_test()
     elif arg == "--json-echo":  # 供外部快速探测
-        print(json.dumps({"server": "origin", "ok": True, "version": "2.2.2"}))
+        print(json.dumps({"server": "origin", "ok": True, "version": SERVER_VERSION}))
     else:
         _sync_stdio_server()
