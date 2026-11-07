@@ -6,7 +6,7 @@
 
 ## 安装
 
-前置：OriginLab Origin + `dsh-origin` MCP（装法见 `install-dsh-origin` skill）；Python 3 + numpy + Pillow。
+前置：OriginLab Origin；技能侧量测脚本要 Python 3 + numpy + Pillow。**Origin MCP 不用另装**——插件随包带 server（MIT，来源与提交号见 `server/NOTICE.md`），首次启动自动建 venv 并挂上 `dsh-origin`。
 
 1. 技能：把本仓库拷到 agent 技能目录，如 `~/.agents/skills/dsh-plot-clone/`。
 2. 插件壳：在 DSH profile 的 `package.json` 加 `file:` 依赖，并把 `dsh-plot-clone` 写进 `dsh.profile.bundles`。
@@ -16,6 +16,8 @@
 pnpm install                                      # 在 profile 目录执行，然后重启 DSH
 curl http://127.0.0.1:<port>/plot-clone/templates # 返回 JSON 即就绪
 ```
+
+首次启动面板会显示依赖安装进度（建 venv → pip 装 mcp/originpro/pywin32/numpy）。装不上时面板直接给失败原因和**可复制的三条命令**（含清华镜像）；也可以手动跑 `python lib/bootstrap.py --stage venv`。若本机已有一条 enabled 的同名 `dsh-origin` 连接，面板出红条、**不会自动改你的配置**：点「停用旧连接」把请求发成一条消息，由 agent 备份后停用、重启生效。
 
 ## 快速开始
 
@@ -48,6 +50,7 @@ python verify_deliverable.py 成品.png 成品.pdf 成品.opju --min-width 1800
 - `aliases.json` — 系统模板显示名；只写这里，**不动仓库 `templates/system/*`**。
 - `user-templates/<id>/` — 用户上传的 Origin 原件 + `meta.json` + 可选 `thumb.png`。
 - `server/`、`venv/`、`cache/`、`mcp-state.json` — 壳自动装好的 MCP 连接器与依赖。
+- `mcp-migration-request.json` — 点过「停用旧连接」后的留痕（请求时间、连接 key、给 agent 的提示词）；本插件从不自己改 `mcp_connector.json`。
 
 系统模板缩略图只认 `templates/evidence/<id>.png`；用户 `.opj/.opju` 的 `thumb.png` 由 agent 侧 `origin_export(width=600)` 补，`.otp/.otpu` 不生成（空框会误导）。
 
@@ -60,6 +63,8 @@ python verify_deliverable.py 成品.png 成品.pdf 成品.opju --min-width 1800
 | `doc -o` 打开 `.oth` 后工程空了 | `.oth` 禁止 `doc -o`；让用户在 GUI Theme Manager 应用，或改用 `.otpu` |
 | Windows 上 `python` 无输出、退出码 49 | 用了商店版存根；换解释器绝对路径（如 DSH 自带 `python.exe`） |
 | 设完渐变再导出，三通道全失败 | 同一批调用毒化 COM 会话；设色与导出拆成两次调用 |
+| 面板红条说 `dsh-origin` 同名冲突 | 本机另有一条 enabled 的同名连接，宿主只保留一条；点「停用旧连接」发消息给 agent（先备份、后停用），重启生效 |
+| 依赖装不上 / 面板一直转 | 看面板给的失败原因与三条手动命令；或手动 `python lib/bootstrap.py --stage venv --status` 复跑 |
 
 ## 版本与变更
 

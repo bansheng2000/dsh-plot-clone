@@ -2,6 +2,10 @@
 
 ## v2.9.0（2026-11-07）
 
+- 安装即带 Origin MCP：`server/` 随包分发 21 个文件（MIT，来源与 commit 见 `server/NOTICE.md`），`cordis.patch.yml` 插入 `plot-clone-origin-mcp` 条目；不再下载 tarball、不再自动注册 connector，首次启动只建 venv。
+- 同名冲突改为只读检测：面板红条 + 「停用旧连接」发一条消息给 agent（备份 → 停用 → 重启），本插件**从不**写 `mcp_connector.json`，请求落 `mcp-migration-request.json` 留痕。
+- 依赖安装三步进面板：stage / progress / 失败原因 / 可复制的三条命令（含清华镜像）/ 镜像提示 / 重试；`bootstrap.json` 状态直接显示在面板，`--check` 可给脚本判定。
+- 自检：新增 `test/patch_check.mjs`（静态 22 项 + 组合 0 重复 id/serverName + 三条变异真红 + `--handshake` 真握手 76 工具）。
 - 面板：可取消选择——`POST /plot-clone/selection` 接受 `null`/空串，顶部「取消选择」+ 卡片「已选 / 取消」，落盘后 `--selected` 报 `none`。
 - 面板：系统模板可改名——新增 `GET|POST /plot-clone/aliases`，只写 `~/.dsh/dsh-plot-clone/aliases.json` 的显示名，仓库 `templates/system/*` 零改动；用户模板仍改自己的 `meta.json`。
 - 面板：★ 收藏与「重命名」统一到每张卡（系统 + 用户），收藏档计数按实际收藏数；`--check` 增悬空别名断言。

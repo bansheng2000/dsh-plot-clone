@@ -12,6 +12,8 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 > v2.7（2026-11-03）：科研投稿规格定档（第 2 步 + `pub_target`/`pub_limits`/`stats` + 自检 17 条 + `--pub-check` 可辨三查）；**同时把范围收回到只做 Origin 复刻**——矢量（Illustrator/SVG）与 3D（Blender）两条通道实测达不到可用水平，已移除，判型选通道那一步不再存在。
 > v2.8（2026-11-05）：**技能与插件自此同一版本号**_（此前技能 v2.x / 插件 0.x 两条线并存，0.1.1 未发布使用）_。内容：审计七项落地——删除用户模板同时摘收藏（`--check` 覆盖 `selection.json`）、禁止 `doc -o` 打开 `.oth`、三个读数坑进硬坑清单（`list_pages.graphs` 恒空 / `origin_status.origin_exe` 报错版本 / GDI `#32770` 卡 COM 60s）、`templates_index.py --match` 按 `data_contract` 找候选、用户模板缩略图改由 agent 侧 `origin_export(width=600)` 补、`index.data_contract` 必须逐字镜像模板自己的 `schema.json`、第 4 步补「点名模板 id」三步流程；**编号规范收敛为「第 N 步」连续整数一套**，第 4 步下的子标题去掉 `1. 2. 3.` 层级号，全文不再有 `5.1` 这类编号。插件 `package.json` 与 SKILL 版本号此后一致推进。
 
+> v2.9（2026-11-07）：**Origin MCP 随插件分发**——`server/` 21 个文件（MIT，来源与 commit 见 `server/NOTICE.md`）进 npm 包，`cordis.patch.yml` 插 `plot-clone-origin-mcp`（serverName `dsh-origin`，工具前缀 `mcp__dsh-origin__*`）；不再首启下载、不再自动写 `mcp_connector.json`。同名连接只做只读检测：面板红条 + 一键把停用请求发成消息（备份→停用→重启），请求落 `mcp-migration-request.json`。首启只建 venv，进度/失败原因/可复制命令（含镜像）都在面板，`lib/bootstrap.py --stage venv|server|register --status --check` 可手动复跑。面板另加取消选择、系统模板别名（`aliases.json`）、每卡 ★ 与重命名；README 精简为速查，细节以 `SKILL.md` 为准。
+
 > v2.6（2026-11-01）：量测层重写——新增 `pixel_core.py`（阈值 / 取色 / 框检测 / 装饰带 / 刻度 / 点径 / 文字行只此一份）与 `test_synth.py`（29 条合成真值断言，改量测代码必须先跑它）；修 14 处实测缺陷（框坐标 −2px、渐变带报 3px、4x 刻度报 25px、点径上限砍掉大游程、细线色被降采样丢弃、半宽与多面板量不到框、两取色器口径不一、反斜杠路径打整条）；判据按实测精度重定（frame ≤1px / band <5% / dot ≤10% 或 ≤1px / tick ≤2px），做不到的三项（多段非单调渐变、>40px 大符号、无闭合框组图）明写进文档。
 
 目的：把"看着像"变成"逐字段对得上"。入口是量测 + 规格卡，出口是一张差量表为空的图。

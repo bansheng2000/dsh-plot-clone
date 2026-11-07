@@ -1,15 +1,44 @@
 # dsh-plot-clone — 插件壳 bundle patch
 #
-# 本 bundle 只注册一个条目 `plot-clone`（name 必须等于包名，市场才认为它 live）。
-# 壳的职责是**检测 + 决策 + 起 bootstrap**，本身不画图、不装依赖：
-#   · 读 connector 现状 → 已有且 enabled 就复用（只读，绝不 configure）
-#   · 缺依赖 → spawn detached bootstrap，立刻返回，不阻塞 DSH 启动
-#   · 依赖就位且没有连接 → 走 dsh-mcp-connector 的本地 HTTP API 注册
+# 两条条目，各司其职：
+#   1. `plot-clone`（name = 包名）：自挂载，市场据此认为 bundle live；它挂模板面板
+#      路由、只读检查连接状态，缺依赖时起后台 bootstrap。
+#   2. `plot-clone-origin-mcp`：用官方 @deepseek-ai/dsh-mcp-client 直接拉起
+#      **随包**的 Origin MCP server（`server/`，MIT，见 server/NOTICE.md）。
+#      装插件 = MCP 一起装好：不下载、不注册 connector、不依赖任何别的插件。
 #
-# 为什么必须用 `- insert:` 包裹：bundle patch 里顶层扁平的 `- id:` 只会被
-# loader 当成「改已有条目配置」，条目不存在时是**静默空操作**——插件永远挂不上
-# （plugin_manager list_bundles 会把它列进 overrides 而不是 rows）。
-# profile 自己那份 cordis.patch.yml 里才用扁平 `- id:` 做配置覆盖层。
+# 为什么用 `- insert:` 包裹：bundle patch 里顶层扁平的 `- id:` 只会被 loader 当成
+# 「改已有条目配置」，条目不存在时是**静默空操作**——插件永远挂不上。
+# profile 自己那份 cordis.patch.yml 里才用扁平 `- id:` 做 config-only 覆盖。
+#
+# 为什么 id 叫 plot-clone-origin-mcp：条目 id 在 loader 里全局唯一。origin 插件
+# 自带的条目叫 mcp-origin，两个插件同时装时不能撞 id；serverName 反而必须保持
+# `dsh-origin`（否则工具前缀从 mcp__dsh-origin__* 变成别的，已有会话/文档全失效）。
+#
+# 路径只用 `!!js` 拼 process.env（loader 只给 eval 一个 `with(ctx)` 环境，没有
+# require/fs）；DSH_HOME 缺省回退到 %USERPROFILE%/.dsh。venv 与 server 副本
+# 都在用户目录（pnpm 重装插件不会清空 node_modules 之外的东西）。
+#
+# 冲突策略：connector 里若已有**启用**的同名连接（serverName=dsh-origin），
+# 两者同名只能活一条。插件**不自动停用**别人——面板顶部红条 + 用户点按钮，
+# 由 agent 走 mcp_connector_set_enabled 停用并回读。
 - insert:
     - id: plot-clone
       name: dsh-plot-clone
+    - id: plot-clone-origin-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: dsh-origin
+        transport: stdio
+        command: !!js (process.env.DSH_HOME || (String(process.env.USERPROFILE) + '/.dsh')) + '/dsh-plot-clone/venv/Scripts/python.exe'
+        args:
+          - '-u'
+          - '-X'
+          - utf8
+          - !!js (process.env.DSH_HOME || (String(process.env.USERPROFILE) + '/.dsh')) + '/dsh-plot-clone/server/origin_mcp_stdio.py'
+        cwd: !!js (process.env.DSH_HOME || (String(process.env.USERPROFILE) + '/.dsh')) + '/dsh-plot-clone/server'
+        env:
+          PYTHONIOENCODING: utf-8
+          PYTHONUNBUFFERED: '1'
+        failOnStartupError: false
+        toolCallTimeoutMs: 120000

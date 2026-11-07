@@ -78,32 +78,34 @@ const STATUS_EMPTY = () => ({ ok: true, detail: { items: [] } });
   ok("幂等键 = custom-<serverName>", `serverName=${mod.SERVER_NAME} -> ${key}`);
 }
 
-/* ───────────── 2) 已存在且 enabled → 只读不 configure ───────────── */
+/* ───────────── 2) 同名且 enabled → conflict，只读不 configure ───────────── */
 {
   const { dir, env } = freshHome();
   try {
     await withFakeConnector({ status: STATUS_WITH(true) }, async ({ apiBase, calls }) => {
       const result = await mod.runStartupCheck({ apiBase, env });
-      assert.equal(result.action, "reuse");
+      assert.equal(result.action, "conflict");
+      assert.equal(result.conflict?.key, "custom-dsh-origin");
       const methods = calls.map((c) => c.method);
       assert.deepEqual(methods, ["status"], `只能发 status，实际发了 ${JSON.stringify(methods)}`);
-      ok("已存在且 enabled → reuse 且只发 status", `requests=${JSON.stringify(methods)}`);
+      ok("同名且 enabled → conflict 且只发 status", `requests=${JSON.stringify(methods)} conflict=${result.conflict?.key}`);
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
-/* ───────────── 3) 已存在但 disabled → 不擅自启用，仍只读 ───────────── */
+/* ───────────── 3) 同名但 disabled → 不算冲突，就绪即 ok，仍只读 ───────────── */
 {
   const { dir, env } = freshHome();
   try {
+    installFakeRenderer(env);
     await withFakeConnector({ status: STATUS_WITH(false) }, async ({ apiBase, calls }) => {
       const result = await mod.runStartupCheck({ apiBase, env });
-      assert.equal(result.action, "enable");
+      assert.equal(result.action, "ok");
       const methods = calls.map((c) => c.method);
       assert.deepEqual(methods, ["status"], "disabled 时也不许发 configure/setEnabled");
-      ok("已存在但 disabled → enable 决策且只读", `requests=${JSON.stringify(methods)}`);
+      ok("同名但 disabled → ok 决策且只读", `requests=${JSON.stringify(methods)}`);
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -125,63 +127,47 @@ const STATUS_EMPTY = () => ({ ok: true, detail: { items: [] } });
   }
 }
 
-/* ───────────── 5) configure 失败不落半条记录 ───────────── */
+/* ───────────── 5) conflict 只记录，不落 registered/connectionKey ───────────── */
 {
   const { dir, env } = freshHome();
   try {
     installFakeRenderer(env);
-    await withFakeConnector(
-      {
-        status: STATUS_EMPTY,
-        configure: () => ({ ok: false, message: 'MCP Server "dsh-origin" 未完成启动' }),
-      },
-      async ({ apiBase, calls }) => {
-        const result = await mod.runStartupCheck({ apiBase, env });
-        assert.equal(result.action, "register");
-        const methods = calls.map((c) => c.method);
-        assert.deepEqual(methods, ["status", "configure"]);
-        assert.equal(result.state.ok, false);
-        assert.equal("registered" in result.state, false, "失败时不许留 registered");
-        assert.equal("connectionKey" in result.state, false, "失败时不许留 connectionKey");
-        assert.match(result.state.error, /未完成启动/);
-        ok(
-          "configure 失败 → 无 registered/connectionKey",
-          `state=${JSON.stringify(result.state)}`,
-        );
-      },
-    );
+    await withFakeConnector({ status: STATUS_WITH(true) }, async ({ apiBase, calls }) => {
+      const result = await mod.runStartupCheck({ apiBase, env });
+      assert.equal(result.action, "conflict");
+      assert.equal(result.state.ok, false);
+      assert.equal(result.state.conflict?.key, "custom-dsh-origin");
+      assert.equal("registered" in result.state, false, "冲突时不许留 registered");
+      assert.equal("connectionKey" in result.state, false, "冲突时不许留 connectionKey");
+      assert.deepEqual(calls.map((c) => c.method), ["status"], "冲突时一个写请求都不许发");
+      ok("conflict → state 只带 conflict，无 registered/connectionKey", `state=${JSON.stringify(result.state)}`);
+    });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
-/* ───────────── 6) configure 成功 → registered + 记录 key ───────────── */
+/* ───────────── 6) 停用请求只落文件 + 生成提示词，绝不碰 connector ───────────── */
 {
   const { dir, env } = freshHome();
   try {
-    const paths = installFakeRenderer(env);
-    await withFakeConnector(
-      {
-        status: STATUS_EMPTY,
-        configure: () => ({ ok: true, detail: { key: "custom-dsh-origin", serverName: "dsh-origin" } }),
-      },
-      async ({ apiBase, calls }) => {
-        const result = await mod.runStartupCheck({ apiBase, env });
-        assert.equal(result.action, "register");
-        assert.equal(result.state.registered, true);
-        assert.equal(result.state.connectionKey, "custom-dsh-origin");
-        // 提交的记录必须指向我们自己那套 venv/server，而不是用户已装的那份
-        const sent = calls.find((c) => c.method === "configure").params;
-        assert.equal(sent.command, paths.venvPython);
-        assert.deepEqual(sent.args, [paths.serverEntry]);
-        assert.equal(sent.serverName, "dsh-origin");
-        assert.equal(sent.transport, "stdio");
-        ok(
-          "configure 成功 → registered 且记录指向自建 venv",
-          `key=${result.state.connectionKey} command=${sent.command.replace(/\\/g, "/")}`,
-        );
-      },
-    );
+    const paths = mod.rendererPaths(env);
+    await withFakeConnector({ status: STATUS_WITH(true) }, async ({ apiBase, calls }) => {
+      const result = await mod.runStartupCheck({ apiBase, env });
+      const request = mod.writeMigrationRequest(env, result.conflict);
+      assert.equal(existsSync(paths.requestFile), true, "必须落下 mcp-migration-request.json");
+      const record = JSON.parse(readFileSync(paths.requestFile, "utf8"));
+      assert.equal(record.connectionKey, "custom-dsh-origin");
+      assert.match(record.prompt, /mcp_connector_set_enabled/);
+      assert.match(record.prompt, /备份/);
+      assert.match(record.prompt, /拿不到配置/);
+      // 写请求文件绝不能顺手发任何 connector 调用
+      assert.deepEqual(calls.map((c) => c.method), ["status"], "留痕时不许碰 connector");
+      ok(
+        "停用请求 → 落 request.json 且只读 connector",
+        `file=${request.file.replace(/\\/g, "/").split("/").slice(-1)} key=${record.connectionKey}`,
+      );
+    });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -753,8 +739,8 @@ function httpSend(url, method, body, headers = {}) {
   });
   assert.deepEqual(
     namesSeen,
-    ["sidebarRightTabs", "sidebarRight"],
-    "必须同时注入 sidebarRightTabs 与 sidebarRight：宿主两个 provide 在同一个 effect 里，只点名一个很可能永远等不到 ready",
+    ["sidebarRightTabs", "sidebarRight", "sessions"],
+    "必须同时注入 sidebarRightTabs / sidebarRight / sessions：两个侧栏 provide 在同一个 effect 里，缺一个等不到 ready；sessions 是「停用旧连接」发消息的通道",
   );
   const diag = sandbox.diagPosts.map((p) => p.body).filter((b) => b !== null);
   const phases = diag.map((b) => b.phase);
@@ -762,7 +748,7 @@ function httpSend(url, method, body, headers = {}) {
   const cbEntry = diag.find((b) => b.phase === "inject-cb");
   assert.ok(cbEntry !== undefined, "进入 inject 回调必须留证据（phase=inject-cb）");
   assert.equal(cbEntry.typeofTabs, "object", "inject-cb 要带 typeof tabs");
-  assert.deepEqual(cbEntry.names, ["sidebarRightTabs", "sidebarRight"]);
+  assert.deepEqual(cbEntry.names, ["sidebarRightTabs", "sidebarRight", "sessions"]);
   const attempts = diag.filter((b) => b.phase === "register-attempt");
   const results = diag.filter((b) => b.phase === "register-result");
   assert.equal(attempts.length, 2, `每条 tab type 注册前都要上报 attempt，实际 ${attempts.length}`);
