@@ -51,16 +51,36 @@ _UPSTREAM = {
 
 
 def _plugin_version() -> str:
-    """读插件 package.json 的 version；测试可用 PLOT_CLONE_PACKAGE_JSON 指到临时文件。"""
+    """读插件版本；测试可用 PLOT_CLONE_PACKAGE_JSON 指到临时文件。
+
+    三种布局都要认：
+      1. 仓库/开发态：`server/../package.json`（唯一真源）
+      2. 生产镜像：`~/.dsh/dsh-plot-clone/server/../VERSION`（bootstrap 每次同步写入）
+         ——镜像里没有 package.json（插件本体在 profile 的 node_modules 下），
+         只认 package.json 会让生产握手退回 "0.0.0-dev"
+      3. 都没有：空串，由调用方兜底
+    """
+    import io as _io
+    base = os.path.dirname(os.path.abspath(__file__))
+    candidates = []
     override = os.environ.get("PLOT_CLONE_PACKAGE_JSON")
-    pkg = override or os.path.abspath(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "package.json"))
-    try:
-        import io as _io
-        with _io.open(pkg, encoding="utf-8-sig") as fh:
-            return str(json.load(fh).get("version") or "").strip()
-    except Exception:
-        return ""
+    if override:
+        candidates.append(override)
+    candidates.append(os.path.join(base, "..", "package.json"))
+    candidates.append(os.path.join(base, "..", "VERSION"))
+    for path in candidates:
+        try:
+            if path.lower().endswith(".json"):
+                with _io.open(path, encoding="utf-8-sig") as fh:
+                    value = str(json.load(fh).get("version") or "").strip()
+            else:
+                with _io.open(path, encoding="utf-8-sig") as fh:
+                    value = (fh.readline() or "").strip()
+        except Exception:
+            continue
+        if value:
+            return value
+    return ""
 
 
 SERVER_VERSION = _plugin_version() or "0.0.0-dev"

@@ -20,7 +20,7 @@
 
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -207,19 +207,19 @@ function findPython() {
   return candidates.find((p) => p && existsSync(p)) ?? null;
 }
 
-export async function handshake({ timeoutMs = 60000, expectVersion = EXPECTED_SERVER_INFO.version, extraEnv = {}, label = '握手' } = {}) {
+export async function handshake({ timeoutMs = 60000, expectVersion = EXPECTED_SERVER_INFO.version, extraEnv = {}, label = '握手', entry = SERVER_ENTRY } = {}) {
   const python = findPython();
   if (!python) {
     ok(false, `${label}: 找不到 python（先让插件建好 venv，或设 DSH_PLOT_CLONE_PYTHON）`);
     return;
   }
-  if (!existsSync(SERVER_ENTRY)) {
-    ok(false, `${label}: server 入口缺失 ${SERVER_ENTRY}`);
+  if (!existsSync(entry)) {
+    ok(false, `${label}: server 入口缺失 ${entry}`);
     return;
   }
 
-  const child = spawn(python, ['-u', '-X', 'utf8', SERVER_ENTRY], {
-    cwd: dirname(SERVER_ENTRY),
+  const child = spawn(python, ['-u', '-X', 'utf8', entry], {
+    cwd: dirname(entry),
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1', ...extraEnv },
   });
@@ -393,6 +393,37 @@ export function checkVendor() {
   }
 }
 
+/* ───────────── 版本号：静态接线 + 镜像布局握手 ───────────── */
+
+function checkVersionWiring() {
+  const boot = readFileSync(join(REPO, 'lib', 'bootstrap.py'), 'utf8');
+  ok(/def write_version/.test(boot) && /\"VERSION\"/.test(boot),
+     '静态: bootstrap 每次同步都写 state/VERSION（镜像版握手靠它，缺了就退回 0.0.0-dev）');
+  const srv = readFileSync(join(REPO, 'server', 'origin_mcp_server.py'), 'utf8');
+  ok(/\"VERSION\"/.test(srv), '静态: server 版本解析含 ../VERSION 回退（镜像里没有 package.json）');
+}
+
+async function checkMirrorVersion() {
+  // 复刻生产布局：state 镜像目录里**没有** package.json，版本只能来自 state 根的
+  // VERSION。这一条如果在 HEAD 上跑，握手会报 0.0.0-dev（真红）。
+  const tmp = mkdtempSync(join(tmpdir(), 'pc-mirror-'));
+  try {
+    const mirrored = join(tmp, 'server');
+    cpSync(join(REPO, 'server'), mirrored, {
+      recursive: true,
+      filter: (src) => !/__pycache__/.test(src),
+    });
+    writeFileSync(join(tmp, 'VERSION'), '9.9.9-mirror-test\n', 'utf8');
+    await handshake({
+      entry: join(mirrored, 'origin_mcp_stdio.py'),
+      expectVersion: '9.9.9-mirror-test',
+      label: '握手(镜像 VERSION)',
+    });
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 /* ───────────── 空闲释放单测（不需要 Origin） ───────────── */
 
 async function checkIdleRelease() {
@@ -438,6 +469,7 @@ if (args.has('--mutate')) {
 }
 
 if (!args.has('--static')) {
+  checkVersionWiring();
   await handshake();
   // 可证伪：把单一真源指到一个版本不同的临时 package.json，握手必须跟着变。
   // 这一条如果过，说明 server 里没有第二份硬编码版本号。
@@ -453,6 +485,7 @@ if (!args.has('--static')) {
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
+  await checkMirrorVersion();
 }
 
 console.log(`\npatch_check ok: ${pass}, failed: ${failures.length}`);

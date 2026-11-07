@@ -283,10 +283,35 @@ def server_ready():
     return meta.get("fingerprint") == dir_fingerprint(p["server"])
 
 
+def plugin_version():
+    """插件 package.json 的 version（本文件在 lib/ 下，上一级就是插件根）。"""
+    pkg = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "package.json")
+    try:
+        return str(json.loads(io.open(pkg, encoding="utf-8-sig").read())
+                   .get("version") or "").strip()
+    except Exception:
+        return ""
+
+
+def write_version(version):
+    """镜像布局没有 package.json：版本号落到 state 根的 VERSION，server 启动时读。"""
+    if not version:
+        return
+    try:
+        io.open(os.path.join(paths()["dir"], "VERSION"), "w",
+                encoding="utf-8", newline="").write(version + "\n")
+    except Exception as exc:
+        log("写 VERSION 失败（忽略，握手会退回 0.0.0-dev）：%s" % exc)
+
+
 def ensure_server():
     p = paths()
     write_state({"ok": False, "stage": "server", "progress": "copy",
                  "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+    # 版本号每次运行都落一遍（与 server 哈希是否变化无关）：只有包版本变了时
+    # server 文件可能一个字节都没动，但握手必须报新版本。
+    write_version(plugin_version())
     if server_ready():
         log("server 镜像与包内哈希一致（只校验，不重拷）")
         return True
@@ -296,23 +321,47 @@ def ensure_server():
         return fail("server", "拿不到 Origin MCP 源码: %s" % exc,
                     "重装 dsh-plot-clone（server/ 随包）；或确认能访问 %s" % UPSTREAM_URL)
     if source == "bundled":
-        log("包内 server/ 为准，重写 state 镜像：%s" % p["server"])
-    tmp = p["server"] + ".tmp"
-    shutil.rmtree(tmp, ignore_errors=True)
-    os.makedirs(tmp, exist_ok=True)
+        log("包内 server/ 为准，就地重写 state 镜像：%s" % p["server"])
+    # 逐文件原子替换，**不**整目录 rename：镜像目录可能就是运行中 MCP 进程的
+    # cwd（cordis.patch.yml 的 cwd 指向它），Windows 下这种目录既删不掉也改不了
+    # 名，rmtree(ignore_errors) + rename 会静默失败（WinError 183），升级永远落
+    # 不下去——表现为「包里 2.10，实际还跑 2.9」。
+    written = removed = 0
     try:
+        src_files = {}
         for base, dirs, files in os.walk(src):
-            dirs[:] = [d for d in dirs if d != "__pycache__"]
-            rel = os.path.relpath(base, src)
-            dst = tmp if rel == "." else os.path.join(tmp, rel)
-            os.makedirs(dst, exist_ok=True)
-            for name in files:
-                if name.endswith((".pyc",)) or name == SERVER_MARKER:
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+            for name in sorted(files):
+                if name.endswith(".pyc") or name == SERVER_MARKER:
                     continue
-                shutil.copy2(os.path.join(base, name), os.path.join(dst, name))
-        if not os.path.isfile(os.path.join(tmp, SERVER_ENTRY)):
-            raise RuntimeError("拷贝后缺少 %s" % SERVER_ENTRY)
-        io.open(os.path.join(tmp, SERVER_MARKER), "w", encoding="utf-8").write(
+                full = os.path.join(base, name)
+                src_files[os.path.relpath(full, src)] = full
+        if SERVER_ENTRY not in src_files:
+            raise RuntimeError("源里缺少 %s" % SERVER_ENTRY)
+        os.makedirs(p["server"], exist_ok=True)
+        for rel, full in sorted(src_files.items()):
+            dst = os.path.join(p["server"], rel)
+            parent = os.path.dirname(dst)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
+            incoming = dst + ".incoming"
+            shutil.copy2(full, incoming)
+            os.replace(incoming, dst)  # 老 .py 已被进程加载，替换不影响运行
+            written += 1
+        for base, dirs, files in os.walk(p["server"]):
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+            for name in sorted(files):
+                if name.endswith((".pyc", ".incoming")) or name == SERVER_MARKER:
+                    continue
+                full = os.path.join(base, name)
+                rel = os.path.relpath(full, p["server"])
+                if rel not in src_files:
+                    try:
+                        os.remove(full)
+                        removed += 1
+                    except OSError as exc:
+                        log("旧文件删不掉（忽略，不影响运行）：%s（%s）" % (rel, exc))
+        io.open(os.path.join(p["server"], SERVER_MARKER), "w", encoding="utf-8").write(
             json.dumps({"fingerprint": dir_fingerprint(src),
                         "source": source,
                         "upstream": {"version": UPSTREAM_VERSION,
@@ -320,12 +369,14 @@ def ensure_server():
                         "entry": SERVER_ENTRY,
                         "copied_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")},
                        ensure_ascii=False, indent=1))
-        shutil.rmtree(p["server"], ignore_errors=True)
-        os.rename(tmp, p["server"])
+        want = dir_fingerprint(src)
+        got = dir_fingerprint(p["server"])
+        if got != want:
+            raise RuntimeError("同步后哈希仍不符：%s != %s" % (got, want))
     except Exception as exc:
-        shutil.rmtree(tmp, ignore_errors=True)
-        return fail("server", "拷贝 server 源码失败: %s" % exc)
-    log("server 源码就位（%s）：%s" % (source, p["server_entry"]))
+        return fail("server", "同步 server 源码失败: %s" % exc)
+    log("server 源码就位（%s）：%s（写入 %d 个文件，删除旧文件 %d 个）"
+        % (source, p["server_entry"], written, removed))
     write_state({"stage": "server", "progress": "done", "source": source})
     return True
 

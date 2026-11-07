@@ -16,7 +16,7 @@
 ## 我们相对上游的改动
 
 1. **`origin_new_project` 工具**（fork 2.7.5）：先 `origin_save_project` 存旧工程再 `doc -n` 新建，避免模态框卡 COM；每会话一个工程。
-2. **版本号跟随插件**（本包改动）：`origin_mcp_server.py` 不再写死 `2.0.0` / `2.3.0`，改为启动时读插件根 `package.json` 的 `version`（可用 `PLOT_CLONE_PACKAGE_JSON` 覆盖，供测试）；上游版本另记在 `_UPSTREAM`，由 `origin_status` 的 `upstream` 字段回报。
+2. **版本号跟随插件**（本包改动）：`origin_mcp_server.py` 不再写死 `2.0.0` / `2.3.0`，按 `PLOT_CLONE_PACKAGE_JSON`（测试）→ 上级 `package.json`（仓库/开发态）→ 上级 `VERSION`（state 镜像，bootstrap 每次写入）的顺序取 `version`；镜像里没有 `package.json`，少了 `VERSION` 这一级生产握手会退回 `0.0.0-dev`。上游版本另记在 `_UPSTREAM`，由 `origin_status` 的 `upstream` 字段回报。
 3. **stdio 入口委托**：`origin_mcp_stdio.py` 只做依赖预检并委托 `origin_mcp_server._sync_stdio_server()`，两种入口共用同一套 76 个工具。
 4. **空闲自动释放**（本包新增 `origin_idle.py`）：MCP 进程随 DSH 常驻，首次 `origin_*` 调用后若一直不释放，Origin 会被自动化占用，用户手动打开会提示「另一个应用正在控制」。现由旁路线程按空闲阈值（默认 120s，`DSH_ORIGIN_IDLE_RELEASE` 覆盖，`0` 关闭）调用 `engine.release()`：只清 COM 引用并显示窗口，不杀进程、不改数据，下一次调用自动重连。`origin_engine.is_connected()` 是只读连接标志（不碰 COM、不触发连接），仅供该线程判定。
 
@@ -42,7 +42,7 @@
 | `origin_idle.py` | 6386 | `4f6afcab5d639a2ea57546ca24088d8a2ba0192f041fae8c47bec8cd0a1a8de2` |
 | `origin_matrix.py` | 5789 | `ebd8a582e37dd3b415f45b4636a2f8b72637b4be34155de8634bde933e05139d` |
 | `origin_mcp_http.py` | 15725 | `fed3c2ea96d8c59948aee9938f03620544c1c4c6a88287d55928447b51db4f61` |
-| `origin_mcp_server.py` | 103838 | `e15db3c70a3d49e595661854954d14558150abedb71b1ddda8eb104747a3fd5a` |
+| `origin_mcp_server.py` | 104658 | `f1b939a724d97f5301545980ed9973738e14aee2dbac736047f6cf8d8b6256bc` |
 | `origin_mcp_stdio.py` | 4744 | `5feb225e958bfb6a8c8e09d3688bb586a942677843dfb9618dffb9f384b6ecf7` |
 | `origin_plan.py` | 14338 | `e841c27531863e1621538bc727f29dacbbeb7fced4909e3fa31133d448ff51c3` |
 | `origin_proof.py` | 8673 | `688e1db3f5acd0f763a47ee35687773ad9fcbaa78a9fe016aa71d91e3f8cd4e1` |
