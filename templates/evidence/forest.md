@@ -23,12 +23,15 @@ origin_plot_template(template_id="forest",
 ## 导出
 
 - 文件：`templates/evidence/forest.png`
-- 尺寸：**1800 × 1276 px**，24245 bytes（`origin_export(fmt="png", width=1800)`，通道 `save_fig(expGraph)`）
+- 尺寸：**1800 × 1276 px**，24878 bytes（`origin_export(fmt="png", width=1800)`，通道 `save_fig(expGraph)`）
+- **2026-11-08 重出（去左上角 C）**：1800 × 1276 px、24878 bytes；C 区 (5,149)-(59,236) 暗像素 **0**；左侧 6.5% 带暗像素 445（为纵轴标题，不在 C 框内）；仍未裁边、未降分辨率
 - **2026-11-05 重出**：水印已清（`mask 0 px / bands 0`）；仍为**合成数据**验证图，不是实验示例
 - PDF/OPJU：`.probe/deliver/forest.pdf`（24025 bytes）/ `.probe/deliver/forest.opju`（本次 9 张共用的工程快照 `.probe/deliver/all-watermark-fix.opju`，334274 bytes 按 id 复制）
 - 校验：`verify_deliverable.py templates/evidence/forest.png .probe/deliver/forest.pdf .probe/deliver/forest.opju --min-width 1800` → **rc=0**，6 项全 PASS
 
 ## 数据
+
+> 2026-11-08 重出说明：本图为 2026-11-08 重出；原始内联数值未存档，数据为同规格重新构造，数值与原图不同。
 
 **合成数据**（脚本内联构造），只用于验证通道连通与图元渲染，**不是实验数据**，不得当作示例结果引用。
 
