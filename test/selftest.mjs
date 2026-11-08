@@ -1750,6 +1750,36 @@ function mount(fetchImpl, docOverride) {
     `chips=${cloudChipKeys.length} cards=${cloudCards.length} 可下载=${cloudText.includes("可下载")} 仅查看=${cloudText.includes("仅查看")} 许可=${detailText.includes("OriginLab copyright")} calls=${cloudCalls.filter((c) => c.startsWith("POST")).length}`,
   );
 
+  /* 云端缩略图也能放大：悬停出浮层、点击钉住大图；点图不再走 /gallery/entry（详情交给「详情」按钮） */
+  {
+    const cloudZoomRec = { appended: [], removed: [] };
+    const cloudZoomPanel = mount(cloudFetch, zoomDocument(cloudZoomRec));
+    await cloudZoomPanel.render();
+    const cloudZoomTree = await clickChipTree(cloudZoomPanel, "云端");
+    const cloudImg = allNodes(cloudZoomTree).find(
+      (n) => n.type === "img" && String((n.props && n.props.src) || "").includes("/gallery/thumb/400"),
+    );
+    assert.ok(cloudImg !== undefined, "已安装的云端卡片必须有缩略图 <img>");
+    assert.equal(cloudImg.props.style?.cursor, "zoom-in", "云端缩略图必须显示 zoom-in 光标");
+    assert.equal(typeof cloudImg.props.onMouseEnter, "function", "云端缩略图必须绑定悬停放大");
+    assert.equal(typeof cloudImg.props.onClick, "function", "云端缩略图必须绑定点击放大");
+    const entriesBefore = cloudCalls.filter((c) => c.includes("/gallery/entry/")).length;
+    cloudImg.props.onClick({ preventDefault() {} });
+    assert.equal(cloudZoomRec.appended.length, 1, `点云端缩略图必须钉住一层大图，实际 ${cloudZoomRec.appended.length}`);
+    const cloudPin = cloudZoomRec.appended[0];
+    assert.equal(cloudPin.getAttribute("data-pc-zoom"), "pin", `云端钉住层必须标 pin，实际 ${cloudPin.getAttribute("data-pc-zoom")}`);
+    assert.ok(String((cloudPin.children[0] && cloudPin.children[0].src) || "").includes("/gallery/thumb/400"), `钉住层必须是同一张缩略图，实际 ${cloudPin.children[0]?.src}`);
+    await new Promise((r) => setTimeout(r, 20));
+    const entriesAfter = cloudCalls.filter((c) => c.includes("/gallery/entry/")).length;
+    assert.equal(entriesAfter, entriesBefore, `点图现在是放大，不该再打 /gallery/entry（详情走「详情」按钮），实际 ${entriesBefore}→${entriesAfter}`);
+    cloudPin.onclick();
+    assert.equal(cloudZoomRec.appended[0].parentNode, null, "点遮罩必须关掉钉住层");
+    ok(
+      "云端缩略图放大：悬停绑定 + 点击钉住同一张图 + 点图不触发 /gallery/entry（详情交给「详情」按钮）",
+      `img=${cloudImg.props.src} pin=${cloudPin.getAttribute("data-pc-zoom")} entry=${entriesBefore}→${entriesAfter} 关层=${cloudZoomRec.appended[0].parentNode === null}`,
+    );
+  }
+
   /* 云端「选用」：只有已安装卡片有按钮 → 点击写 gid-N → 高亮/已选 → 删除已选条目归 null */
   const useBtns = allNodes(await cloudPanel.render()).filter((n) => n.props && n.props["data-gallery-use"] !== undefined);
   assert.equal(useBtns.length, 1, `只有已安装的云端卡片能「选用」，实际 ${useBtns.length} 个`);
