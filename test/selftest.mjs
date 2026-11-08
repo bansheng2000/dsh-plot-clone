@@ -1276,6 +1276,22 @@ function mount(fetchImpl, docOverride) {
     const next = await mounted.render();
     return { text: textOf(next).join(" "), cards: nodesWith(next, "data-template-id").length };
   };
+
+  // 尺寸档：本地列表与云端列表共用同一个 pc-list v-<档位>，与筛选来源无关。
+  const listClassOf = (tree) => {
+    const hit = allNodes(tree).find(
+      (n) => typeof (n.props && n.props.className) === "string" && n.props.className.startsWith("pc-list"),
+    );
+    return hit === undefined ? "(none)" : hit.props.className;
+  };
+  const clickSize = async (mounted, key) => {
+    const btn = allNodes(await mounted.render()).find(
+      (n) => n.type === "button" && n.props && n.props["data-view"] === key,
+    );
+    assert.ok(btn !== undefined, `找不到尺寸档按钮「${key}」`);
+    btn.props.onClick();
+    return await mounted.render();
+  };
   assert.ok(
     goodText.includes("全部 49") && goodText.includes("预设 49") && goodText.includes("用户 0") && goodText.includes("收藏 0"),
     `筛选位必须是 全部/预设/用户/收藏，实际：${goodText.slice(0, 110)}`,
@@ -1358,6 +1374,22 @@ function mount(fetchImpl, docOverride) {
   const favOne = await clickChip(good, "收藏");
   assert.equal(favOne.cards, 1, `收藏后「收藏」筛选应 1 张，实际 ${favOne.cards}`);
 
+  // 用户原话「用户和收藏也要用」：同一尺寸档必须对四个来源生效，切筛选不掉档。
+  await clickChip(good, "全部");
+  assert.equal(listClassOf(await good.render()), "pc-list v-md", "默认档位必须是 pc-list v-md");
+  assert.equal(listClassOf(await clickSize(good, "sm")), "pc-list v-sm", "点「小」后列表必须是 pc-list v-sm");
+  const favSized = await clickChipTree(good, "收藏");
+  assert.equal(listClassOf(favSized), "pc-list v-sm", "「收藏」档必须沿用当前尺寸档（v-sm）");
+  assert.equal(nodesWith(favSized, "data-template-id").length, 1, "「收藏」档切尺寸后仍应 1 张");
+  assert.equal(
+    listClassOf(await clickChipTree(good, "预设")),
+    "pc-list v-sm",
+    "「预设」档必须沿用当前尺寸档（v-sm）",
+  );
+  assert.equal(listClassOf(await clickSize(good, "rows")), "pc-list v-rows", "点「列表」后必须是 pc-list v-rows");
+  assert.equal(listClassOf(await clickSize(good, "md")), "pc-list v-md", "恢复「中」后必须回到 pc-list v-md");
+  await clickChip(good, "全部");
+
   // 用户模板：按 kind 分类，user 不许混进「预设」；卡片不许伪造预览图。
   const mixed = items.map((t, i) =>
     i === 0
@@ -1397,6 +1429,11 @@ function mount(fetchImpl, docOverride) {
     `用户卡片必须显示原始文件名与大小，实际：${mixUser.text.slice(0, 160)}`,
   );
   assert.ok(!mixUser.text.includes("undefined"), "用户卡片渲染不许出现 undefined");
+  assert.equal(
+    listClassOf(await clickChipTree(mix, "用户")),
+    "pc-list v-md",
+    "「用户」档必须是同一个 pc-list（默认 v-md），不许另起一套卡片",
+  );
 
   // 三条面板意见的 UI 侧：星标与「重命名」必须每张卡都有（系统 + 用户一视同仁）。
   await clickChip(mix, "全部"); // 回到全部 49 张再数，避免刚被「用户」档过滤成 1 张
@@ -1551,6 +1588,7 @@ function mount(fetchImpl, docOverride) {
   assert.equal(cloudChipKeys.length, 7, `云端必须有 7 个分类 chip（全部/2D/3D/统计-QC/专业坐标/其他/已安装），实际 ${cloudChipKeys.length}`);
   assert.ok(cloudText.includes("全部 3") && cloudText.includes("已安装 1"), `分类 chip 必须带计数，实际：${cloudText.slice(0, 120)}`);
   assert.equal(cloudCards.length, 3, `云端卡片必须渲染 3 条，实际 ${cloudCards.length}`);
+  assert.equal(listClassOf(cloudTree), "pc-list v-md", "云端列表必须与本地列表共用 pc-list v-<档位>");
   assert.ok(cloudText.includes("可下载") && cloudText.includes("仅查看"), "卡片必须标出「可下载 / 仅查看」");
   assert.ok(cloudText.includes("已安装"), "已下载的条目必须带「已安装」徽标");
   const detailBtn = allNodes(cloudTree).find((n) => n.type === "button" && textOf(n).join("").trim() === "详情");
