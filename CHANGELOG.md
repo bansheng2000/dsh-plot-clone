@@ -1,5 +1,15 @@
 # 变更记录
 
+## v2.10.2（2026-11-08）
+
+**补随包漏掉的 `origin_e2e.py`（`origin_figure` 全线崩溃），并把「遇到弹窗就点第一个按钮」改成有策略的安全点击。**
+
+- **`origin_figure` 报 `No module named 'origin_e2e'`**：2.10 把 `server/` 随包时漏了这一支，而 `origin_engine.py` 的 `figure` / `warmup` / `pages_gc` 三处都 import 它，工具直接抛 `TOOL_EXCEPTION`。补回文件并同步 `VENDOR.md` / `NOTICE.md`；实测 `origin_figure` 2353 ms 出图（此前必失败）。
+- **旧看门狗的两个真问题**：`_watchdog_dismiss_modals()` 用精确文本匹配 `是`/`否`，中文 Windows 的按钮是 `是(Y)`/`否(N)`，一个都命中不了 → 弹窗点不掉，只能等 90 秒软超时（实测连导 16 张图只成功 6 张）；就算命中，保存确认框的第一个按钮是「是」= 替用户保存并覆盖工程文件。
+- **新增 `server/origin_dialogs.py`**：按弹窗标题 + 正文 + 按钮分类（`project-save` / `overwrite` / `error` / `warning` / `unknown`）。保存与覆盖一律点「否」或「取消」，错误与警告点「确定」，认不出的**不点**、只把标题与按钮回报。`origin_status` 新增 `dialogs` 字段，随时能看 Origin 正卡在哪个框上；`_watchdog_dismiss_modals()` 改为调用它。
+- 自检：`patch_check` 47 项（新增「弹窗判定 6 组」）、`selftest 24/24`、`--static --mutate` 34 项真红。真机闭环：弹一个 `是(Y)/否(N)/取消` 模态框 → 枚举到 → 判为 `project-save` → 点「否(&N)」→ 对话框返回 `False`（否）。
+- 已知未做：`templates/evidence/*.png` 里 27 张历史证据图仍带一个页面级 `C`（11-05 那次重出时烧进去的），重出在下一版做；当前工程里的图页本身没有该对象。
+
 ## v2.10.1（2026-11-07）
 
 **补 v2.10.0 的两个生产环境 bug。** v2.10.0 的 Release 保留但请用本版；装过 2.10.0、且首次启动时 bootstrap 报过 `WinError 183` 的机器，本版启动会自动把镜像就地升级。

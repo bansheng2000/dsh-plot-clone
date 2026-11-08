@@ -452,6 +452,30 @@ async function checkIdleRelease() {
      `空闲释放: 单测 ${match ? `${match[1]} 项全过` : '失败'} | ${last}`);
 }
 
+async function checkDialogs() {
+  const python = findPython();
+  const script = join(HERE, 'origin_dialogs_test.py');
+  if (!python) {
+    ok(false, '弹窗判定: 找不到 python（先让插件建好 venv，或设 DSH_PLOT_CLONE_PYTHON）');
+    return;
+  }
+  if (!existsSync(script)) {
+    ok(false, `弹窗判定: 缺 ${script}（package.json files 要包含 test/origin_dialogs_test.py）`);
+    return;
+  }
+  const child = spawn(python, ['-u', '-X', 'utf8', script], {
+    cwd: REPO,
+    env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' },
+  });
+  let out = '';
+  child.stdout.on('data', (chunk) => { out += chunk.toString('utf8'); });
+  child.stderr.on('data', (chunk) => { out += chunk.toString('utf8'); });
+  const code = await new Promise((resolve) => child.on('close', resolve));
+  const match = /dialogs 单测：(\d+) 组 \/ 失败 0/.exec(out);
+  ok(code === 0 && Boolean(match),
+     `弹窗判定: 单测 ${match ? `${match[1]} 组全过` : '失败'}（保存/覆盖框必须点「否」，不能点「是」）`);
+}
+
 /* ───────────── main ───────────── */
 
 const args = new Set(process.argv.slice(2));
@@ -462,6 +486,7 @@ checkComposition(text);
 checkVendor();
 if (!args.has('--static')) {
   await checkIdleRelease();
+  await checkDialogs();
 }
 
 if (args.has('--mutate')) {

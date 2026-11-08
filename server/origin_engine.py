@@ -32,6 +32,7 @@ import time
 import traceback
 import uuid
 
+import origin_dialogs as odlg
 import origin_errors as oerr
 import origin_analysis as oana
 import plot_style as pst
@@ -212,56 +213,18 @@ def _watchdog_origin_pids():
 
 
 def _watchdog_dismiss_modals():
-    """枚举 Origin 的可见模态对话框并点击白名单按钮（看门狗，P0-1）。
+    """枚举 Origin 的模态对话框，按白名单策略点「安全」按钮。
 
-    返回 [{"title": 窗口标题, "clicked": 按钮文本}]；找不到/点不掉的弹窗只记标题。
-    机制（2026-09-16 探针实证）：EnumWindows 找 Origin PID 的 #32770 类
-    可见对话框 → EnumChildWindows 找按钮 → PostMessage(BM_CLICK) 异步点击。
+    2026-11-08 起改由 `origin_dialogs` 判定（旧的「见到白名单按钮就点第一个」
+    有两个真问题：中文按钮 `是(Y)` 精确匹配不上，且保存确认框里第一个按钮
+    就是「是」——等于替用户保存并覆盖工程）。现在的策略：
+    保存/覆盖确认 → 点「否」；错误/警告提示 → 点「确定」；认不出的 → 不点，
+    只把标题与按钮交回调用方。
     """
-    results = []
     try:
-        import win32gui
-        import win32con
-        import win32process
-    except ImportError:
-        return results  # 无 pywin32：看门狗降级（直接走超时分支）
-    pids = _watchdog_origin_pids()
-    if not pids:
-        return results
-    found = []
-
-    def _cb(h, _):
-        try:
-            if (win32gui.GetClassName(h) == "#32770"
-                    and win32gui.IsWindowVisible(h)):
-                _, pid = win32process.GetWindowThreadProcessId(h)
-                if pid in pids:
-                    found.append((h, win32gui.GetWindowText(h)))
-        except Exception:
-            pass
-
-    try:
-        win32gui.EnumWindows(_cb, None)
+        return odlg.dismiss_safe()
     except Exception:
-        return results
-    for h, title in found:
-        entry = {"title": title, "clicked": None}
-        try:
-            buttons = []
-            win32gui.EnumChildWindows(
-                h, lambda b, _: buttons.append((b, win32gui.GetWindowText(b))),
-                None)
-            entry["buttons"] = [t for _, t in buttons]
-            for b, txt in buttons:
-                if txt in ("OK", "确定", "Yes", "是", "No", "否",
-                           "Close", "关闭", "Cancel", "取消"):
-                    win32gui.PostMessage(b, win32con.BM_CLICK, 0, 0)
-                    entry["clicked"] = txt
-                    break
-        except Exception:
-            pass
-        results.append(entry)
-    return results
+        return []
 
 
 def _watchdog_timeout_secs():
@@ -5253,7 +5216,15 @@ def _reconnect_impl():
 
 @_synchronized
 def status():
-    return _status_impl()
+    v = _status_impl()
+    if isinstance(v, dict):
+        # 弹窗现状（只读，不点击）：让调用方看到"Origin 正卡在哪个框上"，
+        # 而不是只拿到一个 90 秒超时。
+        try:
+            v["dialogs"] = odlg.list_dialogs()
+        except Exception:
+            v["dialogs"] = []
+    return v
 
 
 @_synchronized

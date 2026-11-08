@@ -1,8 +1,10 @@
 # 来源与许可（server/ 目录）
 
-本目录下的 Python 源码**不是本仓库原创**，而是 dsh-origin-plugin 的原样副本
-（未修改任何一行），随 dsh-plot-clone 一起分发，好让「装插件 = Origin MCP 一起装好」，
-不必首启再从 GitHub 下载、也不必经过代理。
+本目录以 dsh-origin-plugin 2.7.5（提交 `03acc24181aae6c6ac3a8502aa6ae24a8d1708da`）
+为底座，原样随包分发，好让「装插件 = Origin MCP 一起装好」，不必首启再从 GitHub
+下载、也不必经过代理。相对上游的改动见 `VENDOR.md`（版本号跟随插件、stdio 入口
+委托、新增 `origin_idle.py` 与 `origin_dialogs.py`），这些改动不改变上游文件的
+许可与版权声明。
 
 ## 来源
 
@@ -17,15 +19,20 @@
 
 MIT License，Copyright (c) 2026 Fantasality。许可全文见 `server/LICENSE`（与上游
 `LICENSE` 逐字节相同）。MIT 允许再分发与随包分发，前提是保留版权声明与许可全文——
-这两条都在本目录里，请勿删除。
+这两条都在本目录里，请勿删除。`origin_idle.py`、`origin_dialogs.py` 为本插件新增，
+同样以 MIT 分发。
 
 ## 目录内文件
 
-`origin_mcp_stdio.py`、`origin_mcp_server.py`、`origin_engine.py`、`origin_edit.py`、
-`origin_template.py`、`origin_errors.py`、`origin_annotate.py`、`origin_capabilities.py`、
-`origin_verify.py`、`origin_mcp_http.py`、`origin_analysis.py`、`origin_bridge.py`、
-`origin_e2e.py`（`origin_figure` / `warmup` / `pages_gc` 的实现）、`origin_fileio.py`、`origin_plan.py`、`origin_proof.py`、`origin_spec.py`、
+上游快照（22 个）：`origin_mcp_stdio.py`、`origin_mcp_server.py`、`origin_engine.py`、
+`origin_edit.py`、`origin_template.py`、`origin_errors.py`、`origin_annotate.py`、
+`origin_capabilities.py`、`origin_verify.py`、`origin_mcp_http.py`、`origin_analysis.py`、
+`origin_bridge.py`、`origin_e2e.py`（`origin_figure` / `warmup` / `pages_gc` 的实现）、
+`origin_fileio.py`、`origin_plan.py`、`origin_proof.py`、`origin_spec.py`、
 `origin_matrix.py`、`origin_gallery.py`、`plot_style.py`、`requirements.txt`。
+
+本插件新增（2 个）：`origin_idle.py`（空闲自动释放 COM，避免 Origin 提示「另一个应用
+正在控制」）、`origin_dialogs.py`（模态框识别与安全点击：保存/覆盖一律点「否」）。
 
 ## 升级方式
 
