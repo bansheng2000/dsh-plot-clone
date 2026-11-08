@@ -1,6 +1,15 @@
 # 变更记录
 
-## 未发布：云端模板（2026-11-08，基于 v2.10.2）
+## v2.10.3（2026-11-08）
+
+**本版四件事：云端模板（OriginLab Graph Gallery）、云端选用、面板显示修复、27 张证据图去掉左上角 `C`。**
+
+- **证据图去 C**：27 张 `templates/evidence/*.png` 全部在新图页上重出（1800×1276，C 框 `(5,149)-(59,236)` 暗像素 0）；C 只在栅格导出路径出现、空白页也有，与 opju 文件无关——换进程后即消失，所以判据定成「C 框内暗像素 0」而不是「左侧 6.5% 带 0」（后者会把纵轴标题误判成残留）。9 张原数据未存档的按各自 `visual_contract` 同规格重画，md 逐张写明「数值与原图不同」；`time_frequency` 复核后本来就没有 C，保持原图。
+- **面板显示三处修复**：① 云端块没有滚动容器，外层 742px 且 `overflow:hidden` 会把内容直接裁掉 → 补 flex 列容器 + `min-height:0`，列表内部滚动；② 整面板改 `overflow-y:auto`，MCP 进度条/提示条再高也能滚出来（列表保留最小高度 180px）；③ 缩略图的 `aspect-ratio` 在纵向 flex 卡片里高度算成 0、网格自动行又被压进可视高度（修前卡片 133×48、缩略图 h=0）→ 缩略图改固定高度，网格 `grid-auto-rows:max-content`，并新增五档尺寸：超大 240/180、大 190/140、中 150/112、小 112/84、列表行式 52px，选择存 `localStorage` 的 `pc.view`，系统/用户/收藏/云端四个来源共用。
+- **云端选用**：选中 id 走 `gid-<n>` 命名空间（`^gid-[1-9]\d*$`），已安装卡片加「选用」按钮、选中高亮并显示 `GID n · 标题` 与工程绝对路径；`/gallery/download` 首次安装成功自动写 selection，重复下载不改已选；删除正被选中的条目时 selected 归 null；未安装（`gid-9999`）与畸形（`gid-0`/`gid-abc`）一律 400。顺带修掉用户模板改名回执里 selection 不走 `selView` 的遗漏（选中云端时回执会丢 `selected_template`）。
+- 自检：`gallery_test` 84 项、`selftest 28/28`、`patch_check` 全量 63/0、`--static 47`、`--static --mutate 50`；三处变异（放宽 `GID` 正则、允许写入未安装 gid、改名回执退回旧写法）均真红后还原。
+
+### 云端模板（OriginLab Graph Gallery）
 
 **模板多一个来源：OriginLab Graph Gallery。随包只带元数据，工程文件按需下载到本机，不进仓库、不随插件分发。**
 
