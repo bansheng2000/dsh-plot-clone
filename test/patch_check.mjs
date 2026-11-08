@@ -476,6 +476,66 @@ async function checkDialogs() {
      `弹窗判定: 单测 ${match ? `${match[1]} 组全过` : '失败'}（保存/覆盖框必须点「否」，不能点「是」）`);
 }
 
+/* ───────────── 云端模板：包内快照与「不含工程文件」 ───────────── */
+
+function checkGalleryIndex() {
+  const indexPath = join(REPO, 'templates', 'gallery', 'index.json');
+  const hasIndex = existsSync(indexPath);
+  ok(hasIndex, '云端目录: templates/gallery/index.json 存在');
+  if (!hasIndex) return;
+  let doc = null;
+  try {
+    doc = JSON.parse(readFileSync(indexPath, 'utf8'));
+  } catch (error) {
+    ok(false, `云端目录: index.json 解析失败（${error.message}）`);
+    return;
+  }
+  ok(Array.isArray(doc.templates) && doc.templates.length === 617,
+     `云端目录: 617 条元数据（实际 ${Array.isArray(doc.templates) ? doc.templates.length : '非数组'}）`);
+
+  const allowed = new Set(['blog.originlab.com', 'd2mvzyuse3lwjc.cloudfront.net', 'www.originlab.com']);
+  let badHost = 0;
+  let badShape = 0;
+  let downloadable = 0;
+  for (const t of doc.templates ?? []) {
+    if (!Number.isInteger(t.gid) || t.gid <= 0) badShape += 1;
+    for (const key of ['types', 'keywords', 'files']) {
+      if (!Array.isArray(t[key])) badShape += 1;
+    }
+    if (typeof t.downloadable !== 'boolean') badShape += 1;
+    if (t.downloadable && t.files.length > 0) downloadable += 1;
+    for (const url of [...(t.files ?? []), ...(t.thumb === null || t.thumb === undefined ? [] : [t.thumb])]) {
+      let host = null;
+      try {
+        host = new URL(url).host.toLowerCase();
+      } catch {
+        host = null;
+      }
+      if (host === null || !allowed.has(host)) badHost += 1;
+    }
+  }
+  ok(badShape === 0, `云端目录: 条目 schema 合法（问题 ${badShape}）`);
+  ok(badHost === 0, `云端目录: 下载/缩略图只走官方 host（越界 ${badHost}）`);
+  ok(downloadable === 455, `云端目录: 455 条可下载（实际 ${downloadable}）`);
+  ok(doc.counts?.total === doc.templates.length, '云端目录: counts.total 与条目数一致');
+
+  // 包内绝不能带 Origin 工程二进制：那是 OriginLab 版权作品，只随用户点按需下载。
+  const galleryDir = join(REPO, 'templates', 'gallery');
+  const files = readdirSync(galleryDir);
+  ok(files.length === 1 && files[0] === 'index.json',
+     `云端目录: templates/gallery 只有 index.json（实际 ${files.join(', ')}）`);
+  ok(!files.some((f) => /\.(opj|opju|otp|otpu|oth)$/i.test(f)), '云端目录: 包内没有任何 .opj/.opju/.otp');
+
+  for (const rel of ['lib/zip.js', 'lib/gallery.js', 'scripts/build_gallery_index.mjs']) {
+    ok(existsSync(join(REPO, rel)), `云端目录: ${rel} 存在`);
+  }
+  const filesField = Array.isArray(PACKAGE.files) ? PACKAGE.files : [];
+  ok(filesField.includes('templates/'), '云端目录: package.json files 含 templates/（index.json 会随包）');
+  for (const rel of ['lib/zip.js', 'lib/gallery.js', 'scripts/build_gallery_index.mjs', 'test/gallery_test.mjs']) {
+    ok(filesField.includes(rel), `云端目录: package.json files 含 ${rel}（安装副本要能读到）`);
+  }
+}
+
 /* ───────────── main ───────────── */
 
 const args = new Set(process.argv.slice(2));
@@ -484,6 +544,7 @@ const text = readFileSync(PATCH, 'utf8');
 checkStatic(text);
 checkComposition(text);
 checkVendor();
+checkGalleryIndex();
 if (!args.has('--static')) {
   await checkIdleRelease();
   await checkDialogs();

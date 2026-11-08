@@ -1489,6 +1489,96 @@ function mount(fetchImpl, docOverride) {
     "侧栏标签真渲染：49 条 + 无 undefined + 404 出错误文案 + 筛选四档 + 「预设」下分类层 + 用户卡片无伪造预览",
     `cards=${cards.length} html=${htmlCards} 全部49=${goodText.includes("全部 49")} 无实拍=${goodText.includes("无实拍")} 筛选=${fAll.cards}/${fPre.cards}/${fUser.cards}/${fFav.cards} 用户空态=${fUser.text.includes("还没有你自己的模板")} 用户卡片=${mixUser.cards} 空态=${fFav.text.includes("还没有收藏的模板")} 404="${badText.includes("HTTP 404")}" bind=${body.key}==${hostTypes[0].kind} diag=${goodPhases.includes("panel-enter")}/${goodPhases.includes("panel-ready")}`,
   );
+
+  /* 云端模板：分类 chip 带计数、卡片按条目渲染（可下载/仅查看/已安装徽标）、
+     详情出许可与来源页、下载与刷新各打到自己的路由。 */
+  const cloudCalls = [];
+  const cloudCats = [
+    { key: "all", label: "全部", count: 3 },
+    { key: "2d", label: "2D", count: 0 },
+    { key: "3d", label: "3D", count: 1 },
+    { key: "stats", label: "统计-QC", count: 1 },
+    { key: "special", label: "专业坐标", count: 0 },
+    { key: "other", label: "其他", count: 1 },
+    { key: "installed", label: "已安装", count: 1 },
+  ];
+  const cloudEntry = { gid: 254, title: "Pareto Chart", category: "stats", files: [], keywords: ["QC"], types: ["Bar Chart"], thumb: null, downloadable: true, installed: false, local: null };
+  const cloudDetail = {
+    gid: 254,
+    title: "Pareto Chart",
+    category: "stats",
+    files: [],
+    page: "https://www.originlab.com/www/products/GraphGallery.aspx?GID=254",
+    license: "OriginLab copyright, local personal use only",
+  };
+  const cloudFetch = async (url, init) => {
+    const u = String(url);
+    cloudCalls.push(`${(init && init.method) || "GET"} ${u}`);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => {
+        if (u.includes("/gallery/entry/")) return { ok: true, entry: cloudDetail, installed: null };
+        if (u.includes("/gallery/download")) return { ok: true, gid: 254 };
+        if (u.includes("/gallery/refresh")) return { ok: true, added: 0, refreshed_at: "2026-11-08T03:56:31.853Z" };
+        if (u.includes("/gallery")) {
+          return {
+            ok: true,
+            total: 3,
+            shown: 3,
+            category: "all",
+            query: "",
+            categories: cloudCats,
+            templates: [
+              cloudEntry,
+              { ...cloudEntry, gid: 300, title: "3D Surface", category: "3d", downloadable: false, types: ["Surface Plot"] },
+              { ...cloudEntry, gid: 400, title: "已装图", category: "other", installed: true, local: { file: "source.opju", bytes: 10 } },
+            ],
+          };
+        }
+        if (u.endsWith("/templates")) return { ok: true, templates: items };
+        return { ok: true, selected: null, favorites: [] };
+      },
+    };
+  };
+  const cloudPanel = mount(cloudFetch);
+  await cloudPanel.render();
+  const cloudTree = await clickChipTree(cloudPanel, "云端");
+  const cloudChipKeys = nodesWith(cloudTree, "data-cloud-cat");
+  const cloudCards = nodesWith(cloudTree, "data-gallery-gid");
+  const cloudText = textOf(cloudTree).join(" ");
+  const cloudBtn = (label) => allNodes(cloudTree).find((n) => n.type === "button" && textOf(n).join("").trim() === label);
+  assert.equal(cloudChipKeys.length, 7, `云端必须有 7 个分类 chip（全部/2D/3D/统计-QC/专业坐标/其他/已安装），实际 ${cloudChipKeys.length}`);
+  assert.ok(cloudText.includes("全部 3") && cloudText.includes("已安装 1"), `分类 chip 必须带计数，实际：${cloudText.slice(0, 120)}`);
+  assert.equal(cloudCards.length, 3, `云端卡片必须渲染 3 条，实际 ${cloudCards.length}`);
+  assert.ok(cloudText.includes("可下载") && cloudText.includes("仅查看"), "卡片必须标出「可下载 / 仅查看」");
+  assert.ok(cloudText.includes("已安装"), "已下载的条目必须带「已安装」徽标");
+  const detailBtn = allNodes(cloudTree).find((n) => n.type === "button" && textOf(n).join("").trim() === "详情");
+  assert.ok(detailBtn !== undefined, "每张云端卡片必须有「详情」按钮");
+  detailBtn.props.onClick();
+  await new Promise((r) => setTimeout(r, 10));
+  const detailTree = await cloudPanel.render();
+  const detailText = textOf(detailTree).join(" ");
+  assert.ok(detailText.includes("OriginLab copyright"), `详情必须写明 OriginLab 许可，实际：${detailText.slice(0, 160)}`);
+  assert.ok(
+    nodesWith(detailTree, "href").includes("https://www.originlab.com/www/products/GraphGallery.aspx?GID=254"),
+    "详情必须给来源页链接",
+  );
+  const dlBtn = allNodes(detailTree).find((n) => n.type === "button" && textOf(n).join("").trim() === "下载");
+  assert.ok(dlBtn !== undefined, "可下载条目必须有「下载」按钮");
+  dlBtn.props.onClick();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(cloudCalls.some((c) => c.startsWith("POST") && c.includes("/gallery/download")), `点下载必须 POST /gallery/download，实际：${cloudCalls.join(" | ")}`);
+  const refreshBtn = allNodes(await cloudPanel.render()).find((n) => n.type === "button" && textOf(n).join("").trim() === "刷新目录");
+  assert.ok(refreshBtn !== undefined, "云端必须有「刷新目录」按钮");
+  refreshBtn.props.onClick();
+  await new Promise((r) => setTimeout(r, 10));
+  assert.ok(cloudCalls.some((c) => c.startsWith("POST") && c.includes("/gallery/refresh")), `点刷新必须 POST /gallery/refresh，实际：${cloudCalls.join(" | ")}`);
+  ok(
+    "云端模板面板：7 个分类 chip 带计数 + 3 张卡片（可下载/仅查看/已安装）+ 详情出许可与来源页 + 下载/刷新打到各自路由",
+    `chips=${cloudChipKeys.length} cards=${cloudCards.length} 可下载=${cloudText.includes("可下载")} 仅查看=${cloudText.includes("仅查看")} 许可=${detailText.includes("OriginLab copyright")} calls=${cloudCalls.filter((c) => c.startsWith("POST")).length}`,
+  );
+
   ok(
     "缩略图悬停放大：层挂 body + 150 ms 延迟 + 离开即删 + 点击钉住 + 位置夹边",
     `bound=${zoomNodes.length}/${thumbCards} body=${hoverOnBody} src=${zoomImg.src} delayed=${hoverRemoved} pin=${pinLayer.getAttribute("data-pc-zoom")} place=${placeCases.length}cases`,
@@ -1636,4 +1726,4 @@ function mount(fetchImpl, docOverride) {
   });
 }
 
-console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档 / 预设分类层 / 缩略图放大 / 坏图不放大）`);
+console.log(`\nselftest ok: ${passed}/${passed} 通过（幂等键 / 只读复用 / configure 失败不落半条 / patch 形态 / 模板列表 / 缩略图 / 选中落盘 / 三条路由 / 用户模板上传删除 / CLI 建模板 / 侧栏标签契约 / 侧栏 apply / 标签真渲染 / 筛选四档 / 预设分类层 / 云端面板 / 缩略图放大 / 坏图不放大）`);

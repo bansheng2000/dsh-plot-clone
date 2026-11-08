@@ -27,6 +27,10 @@
     "scripts/vendor_sync.mjs",
     "templates/",
     "server/",
+    "lib/zip.js",
+    "lib/gallery.js",
+    "scripts/build_gallery_index.mjs",
+    "test/gallery_test.mjs",
     ".gitignore"
   ],
   "keywords": [

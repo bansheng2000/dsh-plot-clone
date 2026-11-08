@@ -12,6 +12,7 @@ whenToUse: 仅当用户**明确要求复刻/照着某张图**（"复刻"、"照�
 > v2.7（2026-11-03）：科研投稿规格定档（第 2 步 + `pub_target`/`pub_limits`/`stats` + 自检 17 条 + `--pub-check` 可辨三查）；**同时把范围收回到只做 Origin 复刻**——矢量（Illustrator/SVG）与 3D（Blender）两条通道实测达不到可用水平，已移除，判型选通道那一步不再存在。
 > v2.8（2026-11-05）：**技能与插件自此同一版本号**_（此前技能 v2.x / 插件 0.x 两条线并存，0.1.1 未发布使用）_。内容：审计七项落地——删除用户模板同时摘收藏（`--check` 覆盖 `selection.json`）、禁止 `doc -o` 打开 `.oth`、三个读数坑进硬坑清单（`list_pages.graphs` 恒空 / `origin_status.origin_exe` 报错版本 / GDI `#32770` 卡 COM 60s）、`templates_index.py --match` 按 `data_contract` 找候选、用户模板缩略图改由 agent 侧 `origin_export(width=600)` 补、`index.data_contract` 必须逐字镜像模板自己的 `schema.json`、第 4 步补「点名模板 id」三步流程；**编号规范收敛为「第 N 步」连续整数一套**，第 4 步下的子标题去掉 `1. 2. 3.` 层级号，全文不再有 `5.1` 这类编号。插件 `package.json` 与 SKILL 版本号此后一致推进。
 
+> 未发布增补（2026-11-08，基于 v2.10.2）：**云端模板（OriginLab Graph Gallery）**——模板多一个来源，与系统模板（随包 49 套只读）、用户模板（只放用户手传）彻底分开：下载件落 `~/.dsh/dsh-plot-clone/gallery-templates/gid-<n>/`，包内只有 `templates/gallery/index.json` 元数据（617 条，453 条有标题且可下载），**不含任何 `.opj/.opju/.otp`**。面板「云端」档按 全部 / 2D / 3D / 统计-QC / 专业坐标 / 其他 / 已安装 分类，可搜索、看详情（来源页 + 许可）、下载、删除；「刷新目录」只在点击时按 GID 枚举线上目录（列表页硬截断 199 条且无翻页），报上次刷新时间与新增条数，不后台跑。许可：Graph Gallery 工程是 OriginLab 版权作品，仅本机个人使用、不随插件分发；版本不兼容时如实回 Origin 的原话。
 > v2.10.2（2026-11-08）：**弹窗识别与安全点击**——新增 `server/origin_dialogs.py`，按标题/正文/按钮把模态框分类，保存与覆盖一律点「否」或「取消」、错误与警告点「确定」、认不出的不点只回报；`origin_status` 的 `dialogs` 字段可看 Origin 正卡在哪个框上。旧看门狗「见到白名单按钮就点第一个」在中文 Windows 上既匹配不上 `是(Y)`/`否(N)`（只能等 90 秒超时），又会把保存确认框的「是」点掉。同版补回随包漏掉的 `server/origin_e2e.py`（`origin_figure` 曾全线报 `No module named 'origin_e2e'`）。
 > v2.10.1（2026-11-07）：**Origin MCP 随插件分发**——`server/` 21 个文件（MIT，来源与 commit 见 `server/VENDOR.md`）进 npm 包，`cordis.patch.yml` 插 `plot-clone-origin-mcp`（serverName `dsh-origin`，工具前缀 `mcp__dsh-origin__*`）；不再首启下载、不再自动写 `mcp_connector.json`。**版本跟着插件走，不单独发版**：`serverInfo.version` 启动时读本包 `package.json`，上游 fork 版本（2.7.5 / `03acc24…`）记在 `VENDOR.md` 与 `origin_status.upstream`。`server/` 是冻结快照，包内为唯一真源（state 镜像每次启动校验哈希，不一致以包内为准重写）；要跟进上游跑 `node scripts/vendor_sync.mjs --from <dir|tgz>`，只打印差异、不写盘、不联网。同名连接只做只读检测：面板红条 + 一键把停用请求发成消息（备份→停用→重启），请求落 `mcp-migration-request.json`。首启只建 venv，进度/失败原因/可复制命令（含镜像）都在面板，`lib/bootstrap.py --stage venv|server|register --status --check` 可手动复跑。面板另加取消选择、系统模板别名（`aliases.json`）、每卡 ★ 与重命名；README 精简为速查，细节以 `SKILL.md` 为准。 **v2.10 增补**：新增 `server/origin_idle.py` 空闲自动释放（默认 120s，`DSH_ORIGIN_IDLE_RELEASE` 覆盖，`0` 关闭）——释放 COM 引用并显示窗口、不杀进程，下一次调用自动重连；修掉「另一个应用正在控制 Origin」，不停在任务管理器强杀。
 
@@ -238,6 +239,19 @@ python templates_index.py --selected
 - `过期选择`（id 已不在索引里）→ 说明它不存在了，走自动匹配。
 
 **选中只是偏好，不是闸门**：它只改优先顺序，不改任何判据。
+
+### 云端模板（OriginLab Graph Gallery，第二来源）
+
+模板有三个来源，**必须各自独立**，别混：系统模板随包只读（`templates/system/`，49 套）／云端模板下载件落 `~/.dsh/dsh-plot-clone/gallery-templates/gid-<n>/`／用户模板落 `~/.dsh/dsh-plot-clone/user-templates/`（只放用户手动上传的）。**云端下载绝不写进 `user-templates/`，也不进仓库**；包内 `templates/gallery/index.json` 只有元数据（617 条，其中 453 条有标题且可下载），没有一个工程文件。
+
+用户要「照 Graph Gallery 那种图」时，按四步走：
+
+1. **找**：右侧栏「Origin 模板」切到「云端」档，分类是 全部 / 2D / 3D / 统计-QC / 专业坐标 / 其他 / 已安装，可按标题与关键词搜索；点开条目看大图、来源页（`?GID=<n>`）与许可提示。
+2. **下**：点「下载」→ `POST /plot-clone/gallery/download {gid}` → 服务端拉 zip、解出 `.opju/.opj/.otp`，写 `gallery-templates/gid-<n>/source.<ext>` + `meta.json`（含 sha256/bytes/许可）+ 本地化缩略图。已经装过回 409，要覆盖得再确认；失败给结构化错误码（网络 / 404 / zip 内无工程文件 / 版本不兼容），不静默。
+3. **用**：与用户模板同一条打开通道——先 `origin_save_project(<临时路径>)` 存当前工程，再 `origin_labtalk(script="doc -o <gallery-templates/gid-<n>/source.opju>;")`（`.oth` 禁止 `doc -o`，见硬坑 14），`origin_inspect_graph` 读样式，`origin_template_save` 存成快照后切回本次工程 `origin_template_apply`。**这是借样式，不是借数据**：下载件里的数据不参与本次复刻，数据仍只来自用户。
+4. **管**：「已安装」档列本机下载件，可逐条删除；「刷新目录」只在用户点按钮时按 GID 枚举线上目录，写 `gallery-cache.json` 并报「上次刷新时间 / 新增 N 条 / 失败原因」，不后台跑、不开定时器。
+
+两条硬话先说：**许可**——Graph Gallery 的工程文件是 OriginLab 版权作品，只许本机个人使用，不随插件分发、不二次发布；**版本兼容**——拿对应版本的 Origin 打开，打不开就把 Origin 的原话回给用户，不猜不绕。
 
 ### 再验索引，再谈模板
 

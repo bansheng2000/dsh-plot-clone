@@ -49,10 +49,24 @@ python verify_deliverable.py 成品.png 成品.pdf 成品.opju --min-width 1800
 - `selection.json` — 选中的模板与收藏；`POST /selection` 传 `null`/空串即取消选择（`--check` 同时查仓库 `templates/favorites.json` 与这里的收藏悬空）。
 - `aliases.json` — 系统模板显示名；只写这里，**不动仓库 `templates/system/*`**。
 - `user-templates/<id>/` — 用户上传的 Origin 原件 + `meta.json` + 可选 `thumb.png`。
+- `gallery-templates/gid-<n>/` — 云端模板下载件（`source.opju` + `meta.json` + 本地化 `thumb.jpg`）；**与用户模板分开，下载不会写进 `user-templates/`**。
+- `gallery-cache.json` — 点过「刷新目录」后的结果（刷新时间、新增、失败原因）。
 - `server/`、`venv/`、`cache/`、`mcp-state.json` — 壳自动装好的 MCP 连接器与依赖。
 - `mcp-migration-request.json` — 点过「停用旧连接」后的留痕（请求时间、连接 key、给 agent 的提示词）；本插件从不自己改 `mcp_connector.json`。
 
 系统模板缩略图只认 `templates/evidence/<id>.png`；用户 `.opj/.opju` 的 `thumb.png` 由 agent 侧 `origin_export(width=600)` 补，`.otp/.otpu` 不生成（空框会误导）。
+
+## 云端模板（OriginLab Graph Gallery）
+
+随包只带 **元数据**（`templates/gallery/index.json`，617 条 / 453 条有标题且可下载），**不含任何 `.opj/.opju/.otp`**；工程文件在用户点「下载」时按需拉取，落在本机 `gallery-templates/`，不进仓库也不随插件分发。
+
+| 项 | 说明 |
+|---|---|
+| 分类 | 全部 / 2D / 3D / 统计-QC / 专业坐标 / 其他 / 已安装（规则写死在 `lib/gallery.js`，带单测） |
+| 下载 | `POST /plot-clone/gallery/download {gid}`，直连失败回落 `HTTPS_PROXY`（默认 `127.0.0.1:7890`）；重复下载回 409，覆盖要确认 |
+| 刷新 | 只在点按钮时枚举线上 GID，写 `gallery-cache.json` 并报「上次刷新 / 新增 N 条 / 失败原因」；不后台跑、不定时器 |
+| 许可 | OriginLab 版权作品，**仅本机个人使用**；`meta.json` 写死，面板详情页也提示 |
+| 版本兼容 | 用对应版本的 Origin 打开；打不开时如实回 Origin 的错误文案，不猜 |
 
 ## 故障排查
 
