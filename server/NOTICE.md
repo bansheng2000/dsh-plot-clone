@@ -24,7 +24,7 @@ MIT License，Copyright (c) 2026 Fantasality。许可全文见 `server/LICENSE`�
 `origin_mcp_stdio.py`、`origin_mcp_server.py`、`origin_engine.py`、`origin_edit.py`、
 `origin_template.py`、`origin_errors.py`、`origin_annotate.py`、`origin_capabilities.py`、
 `origin_verify.py`、`origin_mcp_http.py`、`origin_analysis.py`、`origin_bridge.py`、
-`origin_fileio.py`、`origin_plan.py`、`origin_proof.py`、`origin_spec.py`、
+`origin_e2e.py`（`origin_figure` / `warmup` / `pages_gc` 的实现）、`origin_fileio.py`、`origin_plan.py`、`origin_proof.py`、`origin_spec.py`、
 `origin_matrix.py`、`origin_gallery.py`、`plot_style.py`、`requirements.txt`。
 
 ## 升级方式

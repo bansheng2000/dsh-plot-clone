@@ -20,7 +20,7 @@
 3. **stdio 入口委托**：`origin_mcp_stdio.py` 只做依赖预检并委托 `origin_mcp_server._sync_stdio_server()`，两种入口共用同一套 76 个工具。
 4. **空闲自动释放**（本包新增 `origin_idle.py`）：MCP 进程随 DSH 常驻，首次 `origin_*` 调用后若一直不释放，Origin 会被自动化占用，用户手动打开会提示「另一个应用正在控制」。现由旁路线程按空闲阈值（默认 120s，`DSH_ORIGIN_IDLE_RELEASE` 覆盖，`0` 关闭）调用 `engine.release()`：只清 COM 引用并显示窗口，不杀进程、不改数据，下一次调用自动重连。`origin_engine.is_connected()` 是只读连接标志（不碰 COM、不触发连接），仅供该线程判定。
 
-`origin_idle.py` 是**本插件新增**，不在上游文件清单里；其余 21 个文件仍为上游快照。
+`origin_idle.py` 是**本插件新增**，不在上游文件清单里；其余 22 个文件仍为上游快照。
 
 除以上四点，工具行为与上游一致。改动只发生在「我们这层」的入口/版本字段，上游 `LICENSE` 与版权行原样保留。
 
@@ -29,12 +29,13 @@
 | 文件 | 字节 | sha256 |
 |---|---:|---|
 | `LICENSE` | 1089 | `25b226215eee85a94b0428740196b81e8ceaf24ed8ce3d69c7173ea045d956de` |
-| `NOTICE.md` | 1729 | `bccb185f647696b5be7656c33a87397f954f02f476ff2197a33697cd135f1ade` |
+| `NOTICE.md` | 1802 | `fa67b84c9289021bd918fa79aa26e7796fccc8d755f7b6da93236dd40ee16277` |
 | `origin_analysis.py` | 10840 | `a0340aa72d9e6070243e6b6eaa3cf87f2e18b1b4b422883ff6a3d6a14b6745d8` |
 | `origin_annotate.py` | 15823 | `df74072cd82c500e67911d2fad78cbe02c9d8aac1daab836c4a2b2f5def2ed20` |
 | `origin_bridge.py` | 8310 | `d1ffeb82b4b3d0b056acdedac90fd86f17b62201ec1de85c92bc7d683774031b` |
 | `origin_capabilities.py` | 15141 | `01d00a8c963224e7309385277ed8eeb86184a58c3758721149bd88700fd3b5b9` |
 | `origin_edit.py` | 46512 | `4f162a79f1663899154f733cc1b8723aad4b8976d81755abe9ce3adde5f85464` |
+| `origin_e2e.py` | 19140 | `b5149b8df5dbb4e6e35381b79f9b13cb1ba1abe90040fd5b2d1e6b0eb6433530` |
 | `origin_engine.py` | 268347 | `694ad92d71c1cb0cc6804af9c9e6eb288c808d5091c7230a7120b527c027c253` |
 | `origin_errors.py` | 20619 | `9215ef767ac80e4a87aaa46e3793002f926f6c55614432a4c98caea33b9a2605` |
 | `origin_fileio.py` | 11652 | `95b454edb99353319d3a0c4dfd1687b829ca9d9af4ee02d6bd7352e7caf8c201` |
