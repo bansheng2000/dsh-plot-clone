@@ -282,7 +282,24 @@ let LIST = [];
   const dedupe = tm.validateSelection({ favorites: ["bar", "bar", "xrd"] }, ids);
   assert.equal(dedupe.ok, true);
   assert.deepEqual(dedupe.patch.favorites, ["bar", "xrd"]);
+  // 云端：gid-<n> 命名空间单独校验，未安装/畸形都必须报错
+  const galIds = new Set(["gid-254"]);
+  const gOk = tm.validateSelection({ selected: "gid-254" }, ids, galIds);
+  assert.equal(gOk.ok, true, "已安装的 gid-254 必须放行");
+  assert.equal(gOk.patch.selected, "gid-254");
+  const gMissing = tm.validateSelection({ selected: "gid-9999" }, ids, galIds);
+  assert.equal(gMissing.ok, false);
+  assert.match(gMissing.errors[0], /gallery template not installed: gid-9999/);
+  const gBad = tm.validateSelection({ selected: "gid-abc" }, ids, galIds);
+  assert.equal(gBad.ok, false);
+  assert.match(gBad.errors[0], /gid-<positive integer>/);
+  assert.equal(tm.validateSelection({ selected: "gid-0" }, ids, galIds).ok, false);
+  assert.equal(tm.validateSelection({ selected: "gid-254" }, ids).ok, false, "没传已安装集合时不许放行 gid");
   ok("校验：非法 id 报错、重复收藏去重", `bad=${JSON.stringify(bad.errors)} dedupe=${JSON.stringify(dedupe.patch.favorites)}`);
+  ok(
+    "云端校验：已安装 gid 放行 / 未安装与畸形 400",
+    `gid-254=${gOk.ok} gid-9999="${gMissing.errors[0]}" gid-abc="${gBad.errors[0]}"`,
+  );
 }
 
 /* ───────────── 13) 选中落盘：与 mcp-state.json 同目录，读回一致 ───────────── */
@@ -409,6 +426,98 @@ function httpGet(url, method = "GET", body) {
     ok(
       "路由：列表 49 / thumb image-png / POST→GET 读回 / 收藏可删 / 非法 id 400",
       `png=${png.body.length}B list=${payload.count} page=${html.length}B`,
+    );
+  });
+}
+
+/* ───────────── 14a) 云端选用：gid-<n> 落盘 / 解析 / 未安装 400 / 删除已选归 null ───────────── */
+{
+  await withRoutes(async ({ base, env }) => {
+    const gal = await import("../lib/gallery.js");
+    const root = gal.galleryRootDir(env);
+    const dirG = join(root, "gid-254");
+    mkdirSync(dirG, { recursive: true });
+    writeFileSync(join(dirG, "source.opju"), "fake-opju-bytes");
+    writeFileSync(
+      join(dirG, "meta.json"),
+      JSON.stringify({
+        gid: 254,
+        title: "Pareto Chart",
+        file: "source.opju",
+        source_url: "https://blog.originlab.com/ftp/graph_gallery/GID254_2026b.zip",
+        page: "https://www.originlab.com/www/products/GraphGallery.aspx?GID=254",
+        sha256: "abc",
+        bytes: 15,
+        downloaded_at: "2026-11-08T00:00:00.000Z",
+        license: gal.GALLERY_LICENSE,
+        thumb: null,
+      }),
+    );
+
+    const post = await httpGet(`${base}/selection`, "POST", { selected: "gid-254" });
+    assert.equal(post.status, 200, `已安装的 gid-254 必须 200，实际 ${post.status}`);
+    const picked = JSON.parse(post.body.toString("utf8"));
+    assert.equal(picked.selected, "gid-254");
+    assert.equal(picked.selected_template?.kind, "gallery");
+    assert.equal(picked.selected_template?.name, "GID 254 · Pareto Chart");
+    assert.equal(picked.origin_file, join(dirG, "source.opju"));
+    assert.match(String(picked.usage), /GID 254/);
+    assert.match(String(picked.usage), /不随插件分发/);
+    const onDisk = JSON.parse(readFileSync(tm.selectionPath(env), "utf8"));
+    assert.equal(onDisk.selected, "gid-254");
+    assert.equal(onDisk.origin_file, join(dirG, "source.opju"), "selection.json 必须带云端 origin_file");
+
+    const getSel = JSON.parse((await httpGet(`${base}/selection`)).body.toString("utf8"));
+    assert.equal(getSel.selected_template?.gid, 254, "GET /selection 必须能解析 gid-<n>");
+    const tpl = JSON.parse((await httpGet(`${base}/templates`)).body.toString("utf8"));
+    assert.equal(tpl.selected, "gid-254");
+    assert.equal(tpl.selected_template?.id, "gid-254", "/templates 的 selected 也必须能解析");
+
+    // 改用户模板名时，回执里的 selection 也必须还能解析 gid-<n>（否则面板会把云端选中弄丢）
+    const um2 = await import("../lib/user_templates.js");
+    const made = um2.createUserTemplate({
+      root: tm.userRootDir(env),
+      bytes: Buffer.from("fake-opju"),
+      filename: "rename-check.opju",
+      name: "改名检查",
+    });
+    assert.equal(made.ok, true, `建用户模板失败：${JSON.stringify(made)}`);
+    const ren = await httpGet(`${base}/user-templates/${made.id}/rename`, "POST", { name: "改名后" });
+    assert.equal(ren.status, 200, `改名必须 200，实际 ${ren.status}`);
+    const renSel = JSON.parse(ren.body.toString("utf8")).selection;
+    assert.equal(renSel?.selected, "gid-254", `改用户模板名不许丢云端选中，实际 ${JSON.stringify(renSel?.selected)}`);
+    assert.equal(renSel?.selected_template?.id, "gid-254", "改名的回执也要能解析 gid-<n>");
+
+    const notInstalled = await httpGet(`${base}/selection`, "POST", { selected: "gid-9999" });
+    assert.equal(notInstalled.status, 400, "未安装的 gid-9999 必须 400");
+    assert.match(JSON.parse(notInstalled.body.toString("utf8")).errors[0], /gallery template not installed/);
+    const malformed = await httpGet(`${base}/selection`, "POST", { selected: "gid-abc" });
+    assert.equal(malformed.status, 400, "非 gid-<正整数> 必须 400");
+    assert.match(JSON.parse(malformed.body.toString("utf8")).errors[0], /gid-<positive integer>/);
+    const zero = await httpGet(`${base}/selection`, "POST", { selected: "gid-0" });
+    assert.equal(zero.status, 400, "gid-0 必须 400");
+    assert.equal(
+      JSON.parse((await httpGet(`${base}/selection`)).body.toString("utf8")).selected,
+      "gid-254",
+      "400 不许把已有选中写坏",
+    );
+
+    const del = await httpGet(`${base}/gallery/delete`, "POST", { gid: 254 });
+    assert.equal(del.status, 200);
+    const delData = JSON.parse(del.body.toString("utf8"));
+    assert.equal(
+      delData.selection?.selected,
+      null,
+      `删除已选中的云端条目后 selected 必须归 null，实际 ${JSON.stringify(delData.selection?.selected)}`,
+    );
+    assert.equal(existsSync(dirG), false);
+    const after = JSON.parse((await httpGet(`${base}/selection`)).body.toString("utf8"));
+    assert.equal(after.selected, null);
+    assert.equal(after.origin_file, null);
+
+    ok(
+      "云端选中：gid-<n> 落盘带 origin_file / GET 与 /templates 可解析 / 未安装与畸形 400 / 删除已选归 null",
+      `post=${picked.selected} name=${picked.selected_template.name} 9999=${notInstalled.status} abc=${malformed.status} del=${delData.selection?.selected} exists=${existsSync(dirG)}`,
     );
   });
 }
@@ -1530,6 +1639,7 @@ function mount(fetchImpl, docOverride) {
   /* 云端模板：分类 chip 带计数、卡片按条目渲染（可下载/仅查看/已安装徽标）、
      详情出许可与来源页、下载与刷新各打到自己的路由。 */
   const cloudCalls = [];
+  const cloudSelPosts = [];
   const cloudCats = [
     { key: "all", label: "全部", count: 3 },
     { key: "2d", label: "2D", count: 0 },
@@ -1555,6 +1665,29 @@ function mount(fetchImpl, docOverride) {
       ok: true,
       status: 200,
       json: async () => {
+        if (u.endsWith("/selection")) {
+          const sent = init && init.body ? JSON.parse(String(init.body)) : {};
+          if (init && init.body) cloudSelPosts.push(sent);
+          return {
+            ok: true,
+            selected: sent.selected ?? null,
+            selected_template:
+              sent.selected === "gid-400"
+                ? {
+                    id: "gid-400",
+                    gid: 400,
+                    name: "GID 400 · 已装图",
+                    kind: "gallery",
+                    origin_file: "C:/fake/gid-400/source.opju",
+                    usage: "OriginLab Graph Gallery GID 400 下载件，仅本机个人使用，不随插件分发",
+                  }
+                : null,
+            favorites: [],
+          };
+        }
+        if (u.includes("/gallery/delete")) {
+          return { ok: true, gid: 400, removed: "C:/fake/gid-400", selection: { selected: null, selected_template: null, favorites: [] } };
+        }
         if (u.includes("/gallery/entry/")) return { ok: true, entry: cloudDetail, installed: null };
         if (u.includes("/gallery/download")) return { ok: true, gid: 254 };
         if (u.includes("/gallery/refresh")) return { ok: true, added: 0, refreshed_at: "2026-11-08T03:56:31.853Z" };
@@ -1615,6 +1748,37 @@ function mount(fetchImpl, docOverride) {
   ok(
     "云端模板面板：7 个分类 chip 带计数 + 3 张卡片（可下载/仅查看/已安装）+ 详情出许可与来源页 + 下载/刷新打到各自路由",
     `chips=${cloudChipKeys.length} cards=${cloudCards.length} 可下载=${cloudText.includes("可下载")} 仅查看=${cloudText.includes("仅查看")} 许可=${detailText.includes("OriginLab copyright")} calls=${cloudCalls.filter((c) => c.startsWith("POST")).length}`,
+  );
+
+  /* 云端「选用」：只有已安装卡片有按钮 → 点击写 gid-N → 高亮/已选 → 删除已选条目归 null */
+  const useBtns = allNodes(await cloudPanel.render()).filter((n) => n.props && n.props["data-gallery-use"] !== undefined);
+  assert.equal(useBtns.length, 1, `只有已安装的云端卡片能「选用」，实际 ${useBtns.length} 个`);
+  assert.equal(String(useBtns[0].props["data-gallery-use"]), "400", `「选用」必须挂在已安装那条（gid 400）上，实际 ${useBtns[0].props["data-gallery-use"]}`);
+  assert.equal(textOf(useBtns[0]).join("").trim(), "选用", "未选中时按钮文案必须是「选用」");
+  useBtns[0].props.onClick();
+  await new Promise((r) => setTimeout(r, 20));
+  const pickedPosts = cloudSelPosts.filter((p) => p.selected === "gid-400");
+  assert.equal(pickedPosts.length, 1, `点「选用」必须 POST selection 且 selected=gid-400，实际 ${JSON.stringify(cloudSelPosts)}`);
+  const usedTree = await cloudPanel.render();
+  const card400 = allNodes(usedTree).find((n) => n.props && String(n.props["data-gallery-gid"]) === "400");
+  assert.ok(card400 !== undefined, "选完后 gid 400 卡片还在");
+  assert.ok(String(card400.props.className || "").includes("sel"), `选中的云端卡片必须高亮（className 含 sel），实际 ${card400.props.className}`);
+  const useBtn2 = allNodes(usedTree).find((n) => n.props && String(n.props["data-gallery-use"]) === "400");
+  assert.equal(textOf(useBtn2).join("").trim(), "已选", "选中后按钮文案必须是「已选」");
+  const usedText = textOf(usedTree).join(" ");
+  assert.ok(usedText.includes("GID 400 · 已装图"), `顶部「已选」必须显示云端名字，实际 ${usedText.slice(0, 200)}`);
+  assert.ok(usedText.includes("C:/fake/gid-400/source.opju"), "顶部必须显示云端工程文件路径");
+
+  const delBtn = allNodes(usedTree).find((n) => n.type === "button" && textOf(n).join("").trim() === "删除");
+  assert.ok(delBtn !== undefined, "已安装卡片必须有「删除」");
+  delBtn.props.onClick();
+  await new Promise((r) => setTimeout(r, 30));
+  const afterDelText = textOf(await cloudPanel.render()).join(" ");
+  assert.ok(cloudCalls.some((c) => c.startsWith("POST") && c.includes("/gallery/delete")), "点删除必须 POST /gallery/delete");
+  assert.ok(afterDelText.includes("当前没选模板"), `删除已选条目后顶部必须回到「当前没选模板」，实际 ${afterDelText.slice(0, 200)}`);
+  ok(
+    "云端选用：只有已安装卡片有「选用」→ 写 selection(gid-N) + 卡片高亮 + 按钮「已选」→ 删除已选条目 selected 归 null",
+    `useButtons=${useBtns.length} clicked=${pickedPosts[0]?.selected} 按钮=${textOf(useBtn2).join("").trim()} 高亮=${String(card400.props.className).includes("sel")} 名称=${usedText.includes("GID 400 · 已装图")} 文件=${usedText.includes("C:/fake/gid-400/source.opju")} 删除后=${afterDelText.includes("当前没选模板")}`,
   );
 
   ok(

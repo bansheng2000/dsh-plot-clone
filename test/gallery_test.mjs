@@ -21,14 +21,21 @@ import { deflateRawSync } from 'node:zlib';
 
 import {
   GALLERY_CATEGORIES,
+  GALLERY_LICENSE,
   classifyEntry,
   deleteGid,
   downloadGid,
   galleryListView,
+  gallerySelectionId,
+  galleryTemplateView,
+  galleryUsage,
+  installedGalleryIds,
   installedMap,
   loadGalleryIndex,
+  parseGallerySelectionId,
   refreshGallery,
 } from '../lib/gallery.js';
+import { selectionView, validateSelection } from '../lib/templates.js';
 import { ZipError, extractZip, listZipEntries, pickProjectFile, safeEntryName } from '../lib/zip.js';
 
 let ok = 0;
@@ -295,6 +302,78 @@ eq('刷新占位页单独计数', refreshed.added_placeholders, 1);
 eq('刷新失败数', refreshed.failed, 1);
 check('刷新落 gallery-cache.json', existsSync(join(refreshHome, 'dsh-plot-clone', 'gallery-cache.json')));
 rmSync(refreshHome, { recursive: true, force: true });
+
+/* 选用命名空间：gid-<n> 解析 / 已安装集合 / 云端模板视图 / selection 校验与解析 */
+const selHome = mkdtempSync(join(tmpdir(), 'pc-select-'));
+const selRoot = join(selHome, 'dsh-plot-clone', 'gallery-templates');
+const selDir = join(selRoot, 'gid-254');
+mkdirSync(selDir, { recursive: true });
+writeFileSync(join(selDir, 'source.opju'), 'fake-opju');
+writeFileSync(
+  join(selDir, 'meta.json'),
+  JSON.stringify({
+    gid: 254,
+    title: 'Pareto Chart',
+    file: 'source.opju',
+    source_url: 'https://blog.originlab.com/ftp/graph_gallery/GID254_2026b.zip',
+    page: 'https://www.originlab.com/www/products/GraphGallery.aspx?GID=254',
+    sha256: 'abc',
+    bytes: 9,
+    downloaded_at: '2026-11-08T00:00:00.000Z',
+    license: GALLERY_LICENSE,
+    thumb: null,
+  }),
+);
+
+eq('gid 选中 id 形态', gallerySelectionId(254), 'gid-254');
+eq('解析 gid-254', parseGallerySelectionId('gid-254'), 254);
+eq('拒绝 gid-0', parseGallerySelectionId('gid-0'), null);
+eq('拒绝 gid-abc', parseGallerySelectionId('gid-abc'), null);
+eq('拒绝普通 id', parseGallerySelectionId('bar'), null);
+eq('已安装集合只有 gid-254', [...installedGalleryIds({ root: selRoot })].join(','), 'gid-254');
+check('usage 写明 GID 且不随插件分发', galleryUsage(254).includes('GID 254') && galleryUsage(254).includes('不随插件分发'), galleryUsage(254));
+
+const gv = galleryTemplateView(254, { root: selRoot });
+eq('云端模板视图 kind', gv?.kind, 'gallery');
+eq('云端模板视图 id', gv?.id, 'gid-254');
+eq('云端模板视图 name', gv?.name, 'GID 254 · Pareto Chart');
+eq('云端模板视图 origin_file 指向 source.opju', gv?.origin_file, join(selDir, 'source.opju'));
+eq('云端模板视图 license', gv?.license, GALLERY_LICENSE);
+check('云端模板视图 usage 带 GID 254', String(gv?.usage).includes('GID 254'), gv?.usage ?? '');
+eq('未安装的 gid 视图是 null', galleryTemplateView(9999, { root: selRoot }), null);
+
+rmSync(join(selDir, 'source.opju'));
+eq('工程文件缺失时视图为 null（不抛）', galleryTemplateView(254, { root: selRoot }), null);
+writeFileSync(join(selDir, 'source.opju'), 'fake-opju');
+
+const sysIds = new Set(['bar']);
+const installedIds = new Set(['gid-254']);
+check('validateSelection 接受已安装 gid', validateSelection({ selected: 'gid-254' }, sysIds, installedIds).ok === true);
+eq(
+  'validateSelection 拒绝未安装 gid 的文案',
+  validateSelection({ selected: 'gid-9999' }, sysIds, installedIds).errors[0],
+  'gallery template not installed: gid-9999',
+);
+check(
+  'validateSelection 拒绝非 gid-<正整数> 形态',
+  String(validateSelection({ selected: 'gid-abc' }, sysIds, installedIds).errors[0]).includes('gid-<positive integer>'),
+  validateSelection({ selected: 'gid-abc' }, sysIds, installedIds).errors[0],
+);
+check('validateSelection 拒绝 gid-0', validateSelection({ selected: 'gid-0' }, sysIds, installedIds).ok === false);
+check('未传已安装集合时 gid 一律拒', validateSelection({ selected: 'gid-254' }, sysIds).ok === false);
+
+const sv = selectionView([], { selected: 'gid-254' }, { root: selRoot });
+eq('selectionView 解析云端选中', sv.selected_template?.id, 'gid-254');
+eq('selectionView 的 kind', sv.selected_template?.kind, 'gallery');
+eq('selectionView 的 origin_file', sv.origin_file, join(selDir, 'source.opju'));
+check('selectionView 的 usage 带 GID 254', String(sv.usage).includes('GID 254'), sv.usage ?? '');
+eq('selectionView 正常时无 error', sv.selected_error, undefined);
+
+const svMiss = selectionView([], { selected: 'gid-9999' }, { root: selRoot });
+eq('解析不到时 selected_template 为 null', svMiss.selected_template, null);
+eq('解析不到时给结构化错误', svMiss.selected_error?.code, 'gallery-not-installed');
+
+rmSync(selHome, { recursive: true, force: true });
 
 /* ───────── 汇总 ───────── */
 
